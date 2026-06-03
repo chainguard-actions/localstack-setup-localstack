@@ -1,0 +1,26 @@
+name: Test input coverage (preview-cmd, include-preview, state-name)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run action with all optional inputs (skip-startup, no state-action)
+        id: action
+        uses: .
+        with:
+          image-tag: latest
+          install-awslocal: 'true'
+          skip-startup: 'true'
+          preview-cmd: 'echo preview'
+          include-preview: 'false'
+          state-name: 'my-state-snapshot'
+          state-backend: 'cloud-pods'
+          state-action: ''
+          lifetime: '30'
+
+      - name: Assert action completed without error
+        run: |
+          echo "PASS: action completed successfully with all optional inputs provided"
