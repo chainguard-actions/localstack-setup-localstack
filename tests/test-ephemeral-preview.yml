@@ -4,25 +4,22 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_EVENT_NAME: pull_request
-      GITHUB_HEAD_REF: feature-branch
-      GITHUB_BASE_REF: main
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Run action with ephemeral and preview inputs
-        id: action
+      - id: action
         uses: .
         with:
           image-tag: latest
           install-awslocal: 'true'
           skip-startup: 'true'
-          state-backend: ephemeral
-          state-action: ''
-          preview-cmd: 'echo "Deploying to $AWS_ENDPOINT_URL"'
+          state-backend: 'ephemeral'
+          preview-cmd: 'echo preview'
           include-preview: 'false'
-          state-name: 'test-state-snapshot'
-          lifetime: '15'
-      - name: Assert action completed without error
+          github-token: ''
+      - name: Assert awslocal is installed
         run: |
-          echo "PASS: action completed with ephemeral/preview inputs provided"
+          if ! command -v awslocal &>/dev/null; then
+            echo "FAIL: awslocal not found in PATH"
+            exit 1
+          fi
+          echo "PASS: awslocal is installed"

@@ -60,16 +60,16 @@ runs:
       id: create-instance
       env:
         LOCALSTACK_API_KEY_INPUT: ${{ inputs.localstack-api-key }}
+        ACTION_PATH: ${{ github.action_path }}
         AUTO_LOAD_POD_INPUT: ${{ inputs.auto-load-pod }}
         EXTENSION_AUTO_INSTALL_INPUT: ${{ inputs.extension-auto-install }}
         LIFETIME_INPUT: ${{ inputs.lifetime }}
-        ACTION_PATH: ${{ github.action_path }}
       run: |
         AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${LOCALSTACK_API_KEY_INPUT}}}"
         CONTENT_TYPE_HEADER="content-type: application/json"
         API_URL_BASE="https://api.localstack.cloud/v1/compute/instances"
 
-        source "$ACTION_PATH/../retry-function.sh"
+        source "${ACTION_PATH}/../retry-function.sh"
 
         fetch_instances() {
             local list_response
@@ -174,7 +174,7 @@ runs:
         CONTENT_TYPE_HEADER="content-type: application/json"
         API_URL_BASE="https://api.localstack.cloud/v1/compute/instances"
 
-        source "$ACTION_PATH/../retry-function.sh"
+        source "${ACTION_PATH}/../retry-function.sh"
         fetch_logs() {
             local log_response
             log_response=$(curl --fail-with-body -s -X GET \

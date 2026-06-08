@@ -42,7 +42,7 @@ runs:
         CONTENT_TYPE_HEADER="content-type: application/json"
         API_URL_BASE="https://api.localstack.cloud/v1/compute/instances"
 
-        source "$ACTION_PATH/../retry-function.sh"
+        source "${ACTION_PATH}/../retry-function.sh"
         shutdown_instance() {
             # The API returns a 200 on successful deletion.
             # We use --fail-with-body so curl fails on server errors (5xx) and triggers the retry.

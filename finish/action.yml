@@ -69,7 +69,8 @@ runs:
           safe_url=$(printf '%s' "$resolved_url" | tr -d '\n\r')
           echo "LS_PREVIEW_URL=${safe_url}" >> "$GITHUB_ENV"
         elif [[ -e ls-preview-url.txt ]]; then
-          echo "LS_PREVIEW_URL=$(<ls-preview-url.txt)" >> "$GITHUB_ENV"
+          safe_url=$(printf '%s' "$(<ls-preview-url.txt)" | tr -d '\n\r')
+          echo "LS_PREVIEW_URL=${safe_url}" >> "$GITHUB_ENV"
         else
           echo "LS_PREVIEW_URL=Unable to determine preview URL" >> "$GITHUB_ENV"
         fi
