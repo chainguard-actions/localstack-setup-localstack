@@ -75,12 +75,11 @@ runs:
         fi
 
         CONFIGURATION="IMAGE_NAME=${IMAGE_NAME} ${CONFIGURATION}"
-        docker pull ${IMAGE_NAME} &
-        export CI_PROJECT="${CI_PROJECT_INPUT}"
-        eval "${CONFIGURATION} localstack start -d"
+        docker pull "${IMAGE_NAME}" &
+        printf '%s\n' "$CONFIGURATION" | xargs env -- localstack start -d
 
         if [ "$SKIP_WAIT" = false ]; then
-          localstack wait -t ${LS_WAIT_TIMEOUT:-30}  # Let users configure the timeout via env variable
+          localstack wait -t "${LS_WAIT_TIMEOUT:-30}"  # Let users configure the timeout via env variable
         fi
 
       shell: bash
@@ -90,5 +89,5 @@ runs:
         USE_PRO: ${{ inputs.use-pro }}
         CONFIGURATION: ${{ inputs.configuration }}
         SKIP_WAIT: ${{ inputs.skip-wait }}
-        CI_PROJECT_INPUT: ${{ inputs.ci-project }}
+        CI_PROJECT: ${{ inputs.ci-project }}
 

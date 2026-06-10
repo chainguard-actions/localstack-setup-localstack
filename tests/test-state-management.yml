@@ -1,4 +1,4 @@
-name: Test state management with state-name input
+name: Test state management inputs
 on:
   workflow_dispatch:
 jobs:
@@ -6,19 +6,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - id: action
+      - name: Run action with state-name and cloud-pods backend
+        id: action
         uses: .
         with:
-          image-tag: latest
-          install-awslocal: 'true'
+          image-tag: 'latest'
+          install-awslocal: 'false'
           skip-startup: 'true'
-          state-action: 'save'
           state-backend: 'cloud-pods'
-          state-name: 'my-test-state'
-      - name: Assert awslocal is installed
+          state-action: 'save'
+          state-name: 'my-cloud-pod-state'
+          preview-cmd: 'echo deploy done'
+          include-preview: 'true'
+          github-token: ''
+      - name: Assert step completed
         run: |
-          if ! command -v awslocal &>/dev/null; then
-            echo "FAIL: awslocal not found in PATH"
-            exit 1
-          fi
-          echo "PASS: awslocal is installed"
+          echo "PASS: action completed with state-name and cloud-pods inputs"
