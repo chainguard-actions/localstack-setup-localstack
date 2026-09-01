@@ -76,9 +76,16 @@ runs:
         fi
 
         CONFIGURATION="IMAGE_NAME=${IMAGE_NAME} ${CONFIGURATION}"
-        docker pull ${IMAGE_NAME} &
+        docker pull "${IMAGE_NAME}" &
         export CI_PROJECT="${CI_PROJECT_INPUT}"
-        eval "${CONFIGURATION} localstack start -d"
+        # Parse CONFIGURATION as KEY=VALUE pairs and export them, then start localstack
+        # This avoids eval of user-controlled input
+        while IFS= read -r -d '' token; do
+          if [[ "$token" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            export "${BASH_REMATCH[1]}=${BASH_REMATCH[2]}"
+          fi
+        done < <(printf '%s' "$CONFIGURATION" | xargs printf '%s\0')
+        localstack start -d
 
         if [ "$SKIP_WAIT" = false ]; then
           localstack wait -t ${LS_WAIT_TIMEOUT:-30}  # Let users configure the timeout via env variable

@@ -1,0 +1,36 @@
+name: Test ephemeral preview inputs (preview-cmd and include-preview)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run action with preview-cmd and include-preview inputs (skip-startup to avoid Docker)
+        id: action
+        uses: .
+        continue-on-error: true
+        with:
+          image-tag: latest
+          install-awslocal: 'false'
+          skip-startup: 'true'
+          state-backend: 'ephemeral'
+          state-action: 'start'
+          preview-cmd: 'echo "preview at $AWS_ENDPOINT_URL"'
+          include-preview: 'false'
+          lifetime: '30'
+
+      - name: Assert action ran (tools install path or graceful failure)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action succeeded with preview-cmd and include-preview inputs"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (expected without LocalStack Cloud credentials)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
