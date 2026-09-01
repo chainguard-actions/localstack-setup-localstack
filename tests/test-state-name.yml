@@ -1,4 +1,4 @@
-name: Test ephemeral instance with preview inputs
+name: Test state management with state-name input
 on:
   workflow_dispatch:
 jobs:
@@ -13,20 +13,18 @@ jobs:
         with:
           image-tag: latest
           install-awslocal: 'false'
-          skip-startup: 'false'
-          state-backend: ephemeral
-          state-action: start
-          preview-cmd: 'echo "preview at $AWS_ENDPOINT_URL"'
-          include-preview: 'false'
-          lifetime: '10'
+          skip-startup: 'true'
+          state-action: save
+          state-backend: cloud-pods
+          state-name: test-harness-state
 
-      - name: Assert action ran (ephemeral instance requires auth token, graceful failure expected)
+      - name: Assert action ran (cloud-pods state save requires auth token, graceful failure expected)
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action succeeded (ephemeral instance started)"
+            echo "PASS: action succeeded (state saved)"
           elif [ "$OUTCOME" = "failure" ]; then
             echo "PASS: action failed gracefully (no LocalStack auth token available in harness)"
           else

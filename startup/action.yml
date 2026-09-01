@@ -72,12 +72,21 @@ runs:
         fi
 
         CONFIGURATION="IMAGE_NAME=${IMAGE_NAME} ${CONFIGURATION}"
-        docker pull ${IMAGE_NAME} &
-        export CI_PROJECT="$INPUT_CI_PROJECT"
-        env $(echo "$CONFIGURATION" | xargs) localstack start -d
+        docker pull "${IMAGE_NAME}" &
+        export CI_PROJECT="${INPUT_CI_PROJECT}"
+
+        # Parse CONFIGURATION into an array of KEY=VALUE env var assignments and
+        # pass them to localstack start via 'env' to avoid eval-based injection.
+        cfg_args=()
+        if [ -n "$CONFIGURATION" ]; then
+          while IFS= read -r -d '' token; do
+            cfg_args+=("$token")
+          done < <(printf '%s' "$CONFIGURATION" | xargs printf '%s\0')
+        fi
+        env "${cfg_args[@]}" localstack start -d
 
         if [ "$SKIP_WAIT" = false ]; then
-          localstack wait -t ${LS_WAIT_TIMEOUT:-30}  # Let users configure the timeout via env variable
+          localstack wait -t "${LS_WAIT_TIMEOUT:-30}"  # Let users configure the timeout via env variable
         fi
 
       shell: bash

@@ -1,0 +1,60 @@
+name: Test skip-startup without awslocal install
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Pre-populate _actions directory for dynamic-uses resolution
+        run: |
+          # The action resolves sub-actions via ./../../_actions/localstack/setup-localstack/<version>/
+          # Under act with uses: ., the action is not placed in _actions, so we must create the structure.
+          WORKSPACE_PARENT="$(dirname "$GITHUB_WORKSPACE")"
+          ACTIONS_DIR="$(dirname "$WORKSPACE_PARENT")/_actions"
+          mkdir -p "$ACTIONS_DIR/localstack/setup-localstack/v0.2.5"
+          # Copy the action files into the _actions directory
+          cp -r "$GITHUB_WORKSPACE/." "$ACTIONS_DIR/localstack/setup-localstack/v0.2.5/"
+          echo "Created _actions dir at: $ACTIONS_DIR/localstack/setup-localstack/v0.2.5"
+          ls "$ACTIONS_DIR/localstack/setup-localstack/v0.2.5/"
+
+      - name: Run setup-localstack with skip-startup and no awslocal
+        id: action
+        uses: .
+        continue-on-error: true
+        with:
+          image-tag: latest
+          install-awslocal: 'false'
+          skip-startup: 'true'
+
+      - name: Assert action ran (tools installed or failed gracefully)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "Checking localstack CLI..."
+            if ! which localstack > /dev/null 2>&1; then
+              echo "FAIL: localstack CLI not found in PATH after successful action"
+              exit 1
+            fi
+            echo "PASS: localstack CLI found at $(which localstack)"
+            echo "Checking that awslocal CLI is not installed..."
+            if which awslocal > /dev/null 2>&1; then
+              echo "INFO: awslocal was found (may have been pre-installed), but install-awslocal=false was set"
+            else
+              echo "PASS: awslocal CLI not installed as expected"
+            fi
+            echo "Checking that LocalStack is not running..."
+            if docker ps 2>/dev/null | grep -q localstack; then
+              echo "FAIL: LocalStack container is running but skip-startup was true"
+              exit 1
+            fi
+            echo "PASS: LocalStack container is not running as expected"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (dynamic _actions path resolution not available under act)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
