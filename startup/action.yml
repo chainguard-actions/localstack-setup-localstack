@@ -76,10 +76,18 @@ runs:
 
         CONFIGURATION="IMAGE_NAME=${IMAGE_NAME} ${CONFIGURATION}"
         docker pull "${IMAGE_NAME}" &
-        printf '%s\n' "$CONFIGURATION" | xargs env -- localstack start -d
+        export CI_PROJECT="$INPUT_CI_PROJECT"
+        # Safely parse KEY=VALUE pairs from CONFIGURATION and export them,
+        # then run localstack start -d directly (avoids eval injection).
+        while IFS= read -r -d '' token; do
+          case "$token" in
+            *=*) export "$token" ;;
+          esac
+        done < <(printf '%s' "$CONFIGURATION" | xargs printf '%s\0')
+        localstack start -d
 
         if [ "$SKIP_WAIT" = false ]; then
-          localstack wait -t "${LS_WAIT_TIMEOUT:-30}"  # Let users configure the timeout via env variable
+          localstack wait -t ${LS_WAIT_TIMEOUT:-30}  # Let users configure the timeout via env variable
         fi
 
       shell: bash
@@ -89,5 +97,5 @@ runs:
         USE_PRO: ${{ inputs.use-pro }}
         CONFIGURATION: ${{ inputs.configuration }}
         SKIP_WAIT: ${{ inputs.skip-wait }}
-        CI_PROJECT: ${{ inputs.ci-project }}
+        INPUT_CI_PROJECT: ${{ inputs.ci-project }}
 

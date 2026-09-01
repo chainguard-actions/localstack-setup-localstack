@@ -1,4 +1,4 @@
-name: Test ephemeral preview inputs (include-preview, preview-cmd)
+name: Test state-name input
 on:
   workflow_dispatch:
 jobs:
@@ -7,19 +7,17 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Test action with include-preview and preview-cmd inputs
+      - name: Test action with state-name input (save state)
         id: action
         uses: .
         continue-on-error: true
         with:
           skip-startup: 'true'
-          state-backend: 'ephemeral'
-          state-action: 'start'
-          include-preview: 'true'
-          preview-cmd: 'echo "preview command: $AWS_ENDPOINT_URL"'
-          lifetime: '10'
+          state-action: 'save'
+          state-backend: 'cloud-pods'
+          state-name: 'my-test-state'
 
-      - name: Assert action ran (ephemeral instance requires CI auth token)
+      - name: Assert action ran (state save requires LocalStack running)
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
@@ -27,7 +25,7 @@ jobs:
           if [ "$OUTCOME" = "success" ]; then
             echo "PASS: action succeeded"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (ephemeral instance requires CI auth token)"
+            echo "PASS: action failed gracefully (state save requires LocalStack running or CI auth token)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

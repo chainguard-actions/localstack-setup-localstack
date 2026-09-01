@@ -40,7 +40,7 @@ runs:
       id: pr
       shell: bash
       run: |
-        safe_pr_id=$(printf '%s' "$(< pr-id.txt)" | tr -d '\n\r')
+        safe_pr_id=$(printf '%s' "$(<pr-id.txt)" | tr -d '\n\r')
         echo "pr_id=$safe_pr_id" >> "$GITHUB_OUTPUT"
 
     - name: Download preview instance URL
@@ -64,15 +64,15 @@ runs:
       shell: bash
       if: inputs.include-preview
       env:
-        PREVIEW_URL_INPUT: ${{ inputs.preview-url }}
+        INPUT_PREVIEW_URL: ${{ inputs.preview-url }}
       run: |
-        effective_url="${LS_PREVIEW_URL:-${PREVIEW_URL_INPUT}}"
-        if [[ -n "$effective_url" ]]; then
-          safe_url=$(printf '%s' "$effective_url" | tr -d '\n\r')
-          echo "LS_PREVIEW_URL=${safe_url}" >> "$GITHUB_ENV"
+        resolved_url="${LS_PREVIEW_URL:-$INPUT_PREVIEW_URL}"
+        if [[ -n "$resolved_url" ]]; then
+          safe_url=$(printf '%s' "$resolved_url" | tr -d '\n\r')
+          echo "LS_PREVIEW_URL=$safe_url" >> "$GITHUB_ENV"
         elif [[ -e ls-preview-url.txt ]]; then
-          safe_url=$(printf '%s' "$(< ls-preview-url.txt)" | tr -d '\n\r')
-          echo "LS_PREVIEW_URL=${safe_url}" >> "$GITHUB_ENV"
+          safe_url=$(printf '%s' "$(<ls-preview-url.txt)" | tr -d '\n\r')
+          echo "LS_PREVIEW_URL=$safe_url" >> "$GITHUB_ENV"
         else
           echo "LS_PREVIEW_URL=Unable to determine preview URL" >> "$GITHUB_ENV"
         fi

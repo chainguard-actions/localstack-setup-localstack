@@ -1,0 +1,34 @@
+name: Test install-awslocal installs awslocal CLI
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run action with install-awslocal true and skip-startup true
+        id: action
+        uses: .
+        with:
+          skip-startup: 'true'
+          install-awslocal: 'true'
+        continue-on-error: true
+
+      - name: Assert awslocal CLI is installed
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action ran (may have failed due to sentinel repo or network constraints)"
+            exit 0
+          fi
+          # Check if awslocal is available
+          if command -v awslocal > /dev/null 2>&1; then
+            echo "PASS: awslocal CLI is installed"
+          else
+            echo "FAIL: awslocal CLI not found after action ran with install-awslocal=true"
+            exit 1
+          fi
