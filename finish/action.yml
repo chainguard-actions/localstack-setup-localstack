@@ -38,7 +38,9 @@ runs:
     - name: Load the PR ID
       id: pr
       shell: bash
-      run: echo "pr_id=$(<pr-id.txt)" >> $GITHUB_OUTPUT
+      run: |
+        safe=$(printf '%s' "$(<pr-id.txt)" | tr -d '\n\r')
+        echo "pr_id=$safe" >> "$GITHUB_OUTPUT"
 
     - name: Download preview instance URL
       id: get-preview-instance-url-artifact
@@ -63,18 +65,18 @@ runs:
       env:
         INPUT_PREVIEW_URL: ${{ inputs.preview-url }}
       run: |
-        safe_preview_url=$(printf '%s' "${LS_PREVIEW_URL:-$INPUT_PREVIEW_URL}" | tr -d '\n\r')
-        if [[ -n "$safe_preview_url" ]]; then
-          echo "LS_PREVIEW_URL=$safe_preview_url" >> "$GITHUB_ENV"
+        if [[ -n "${LS_PREVIEW_URL:-${INPUT_PREVIEW_URL}}" ]]; then
+          safe=$(printf '%s' "${LS_PREVIEW_URL:-${INPUT_PREVIEW_URL}}" | tr -d '\n\r')
+          echo "LS_PREVIEW_URL=$safe" >> $GITHUB_ENV
         elif [[ -e ls-preview-url.txt ]]; then
-          safe_file_url=$(printf '%s' "$(<ls-preview-url.txt)" | tr -d '\n\r')
-          echo "LS_PREVIEW_URL=$safe_file_url" >> "$GITHUB_ENV"
+          safe=$(printf '%s' "$(<ls-preview-url.txt)" | tr -d '\n\r')
+          echo "LS_PREVIEW_URL=$safe" >> $GITHUB_ENV
         else
-          echo "LS_PREVIEW_URL=Unable to determine preview URL" >> "$GITHUB_ENV"
+          echo "LS_PREVIEW_URL=Unable to determine preview URL" >> $GITHUB_ENV
         fi
 
     - name: Update status comment
-      uses: actions-cool/maintain-one-comment@b36a5b24a5293cc3bed7a8d4c0a74442cda865aa # v3.1.1
+      uses: actions-cool/maintain-one-comment@a7467bfd0e0082d727aea4d3176c8e831e955717 # v3.1.1
       with:
         token: ${{ inputs.github-token }}
         body: |

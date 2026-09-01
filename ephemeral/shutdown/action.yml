@@ -20,7 +20,9 @@ runs:
     - name: Load the PR ID
       id: pr
       shell: bash
-      run: echo "pr_id=$(<pr-id.txt)" >> $GITHUB_OUTPUT
+      run: |
+        safe=$(printf '%s' "$(<pr-id.txt)" | tr -d '\n\r')
+        echo "pr_id=$safe" >> "$GITHUB_OUTPUT"
 
     - name: Setup preview name
       shell: bash
@@ -29,16 +31,18 @@ runs:
         repoName=$GITHUB_REPOSITORY
         repoNameCleaned=$(echo -n "$repoName" | tr -c '[:alnum:]' '-')
         previewName=preview-$repoNameCleaned-$prId
-        echo "previewName=$previewName" >> $GITHUB_ENV
+        safe=$(printf '%s' "$previewName" | tr -d '\n\r')
+        echo "previewName=$safe" >> $GITHUB_ENV
 
     - name: Shutdown ephemeral instance
       shell: bash
       env:
-        LOCALSTACK_API_KEY_INPUT: ${{ inputs.localstack-api-key }}
+        INPUT_LOCALSTACK_API_KEY: ${{ inputs.localstack-api-key }}
       run: |
+        apiKey="${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${INPUT_LOCALSTACK_API_KEY}}}"
         response=$(curl -X DELETE \
             -s -o /dev/null -w "%{http_code}" \
-            -H "ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-$LOCALSTACK_API_KEY_INPUT}}" \
+            -H "ls-api-key: ${apiKey}" \
             -H "content-type: application/json" \
             https://api.localstack.cloud/v1/compute/instances/$previewName)
         if [[ "$response" -ne 200 ]]; then
@@ -48,7 +52,7 @@ runs:
         fi
     
     - name: Update status comment
-      uses: actions-cool/maintain-one-comment@b36a5b24a5293cc3bed7a8d4c0a74442cda865aa # v3.1.1
+      uses: actions-cool/maintain-one-comment@a7467bfd0e0082d727aea4d3176c8e831e955717 # v3.1.1
       with:
         token: ${{ inputs.github-token }}
         body: |

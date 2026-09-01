@@ -71,11 +71,13 @@ runs:
         fi
 
         CONFIGURATION="IMAGE_NAME=${IMAGE_NAME} ${CONFIGURATION}"
-        docker pull ${IMAGE_NAME} &
-        export CI_PROJECT="${INPUT_CI_PROJECT}"
-        # Write configuration KEY=VALUE pairs to a temp env file and use env to apply them
-        printf '%s\n' "$CONFIGURATION" | tr ' ' '\n' | grep -E '^[A-Za-z_][A-Za-z0-9_]*=' > /tmp/ls_config.env
-        env $(cat /tmp/ls_config.env | tr '\n' ' ') localstack start -d
+        docker pull "${IMAGE_NAME}" &
+        export CI_PROJECT="$CI_PROJECT_INPUT"
+        env_args=()
+        while IFS= read -r line; do
+          [ -n "$line" ] && env_args+=("$line")
+        done < <(printf '%s' "$CONFIGURATION" | tr ' ' '\n' | grep -v '^$')
+        env "${env_args[@]}" localstack start -d
 
         if [ "$SKIP_WAIT" = false ]; then
           localstack wait -t ${LS_WAIT_TIMEOUT:-30}  # Let users configure the timeout via env variable
@@ -88,5 +90,4 @@ runs:
         USE_PRO: ${{ inputs.use-pro }}
         CONFIGURATION: ${{ inputs.configuration }}
         SKIP_WAIT: ${{ inputs.skip-wait }}
-        INPUT_CI_PROJECT: ${{ inputs.ci-project }}
-
+        CI_PROJECT_INPUT: ${{ inputs.ci-project }}

@@ -14,8 +14,8 @@ runs:
     - name: Save PR number
       shell: bash
       env:
-        PR_NUMBER: ${{ github.event.number }}
-      run: echo "$PR_NUMBER" > ./pr-id.txt
+        EVENT_NUMBER: ${{ github.event.number }}
+      run: echo "$EVENT_NUMBER" > ./pr-id.txt
 
     - name: Upload PR number
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -24,7 +24,7 @@ runs:
         path: ./pr-id.txt
 
     - name: Create initial PR comment
-      uses: actions-cool/maintain-one-comment@b36a5b24a5293cc3bed7a8d4c0a74442cda865aa # v3.1.1
+      uses: actions-cool/maintain-one-comment@a7467bfd0e0082d727aea4d3176c8e831e955717 # v3.1.1
       with:
         token: ${{ inputs.github-token }}
         body: |
