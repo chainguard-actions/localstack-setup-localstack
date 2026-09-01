@@ -1,6 +1,6 @@
 {
-  "owner": "LocalStack",
+  "owner": "localstack",
   "repo": "setup-localstack",
   "version": "",
-  "url": "https://github.com/LocalStack/setup-localstack"
+  "url": "https://github.com/localstack/setup-localstack"
 }
