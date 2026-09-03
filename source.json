@@ -1,6 +1,11 @@
 {
-  "owner": "LocalStack",
+  "owner": "localstack",
   "repo": "setup-localstack",
-  "version": "",
-  "url": "https://github.com/LocalStack/setup-localstack"
+  "version": "v0.3.1",
+  "commit_sha": "e23ef40712445a2786428c118c31986bca4e9a40",
+  "url": "https://github.com/localstack/setup-localstack",
+  "policy_sha": "d636be7e43ef829af6e853da6b3c7566db9f72fe",
+  "test_policy_sha": "843adf9e4b8f85d0c08b27b9d0b09dd094b54702",
+  "test_agent_version": "2",
+  "harden_agent_version": "2"
 }

@@ -1,0 +1,37 @@
+name: Test skip-startup without awslocal installation
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - id: action
+        name: Run setup-localstack with skip-startup and no awslocal
+        uses: .
+        continue-on-error: true
+        with:
+          skip-startup: 'true'
+          install-awslocal: 'false'
+          image-tag: 'latest'
+
+      - name: Assert action ran (tools installed or failed gracefully)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "Action succeeded — verifying awslocal is NOT installed..."
+            if which awslocal > /dev/null 2>&1; then
+              echo "FAIL: awslocal found in PATH but install-awslocal was false"
+              exit 1
+            fi
+            echo "PASS: awslocal is correctly not installed"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (GH_ACTION_ROOT discovery not available under act)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

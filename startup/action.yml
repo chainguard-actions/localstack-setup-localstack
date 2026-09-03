@@ -75,12 +75,17 @@ runs:
         fi
 
         CONFIGURATION="IMAGE_NAME=${IMAGE_NAME} ${CONFIGURATION}"
-        docker pull ${IMAGE_NAME} &
+        docker pull "${IMAGE_NAME}" &
         export CI_PROJECT="${CI_PROJECT_INPUT}"
-        eval "${CONFIGURATION} localstack start -d"
+        config_args=()
+        if [ -n "$CONFIGURATION" ]; then
+          while IFS= read -r -d '' t; do config_args+=("$t"); done \
+            < <(printf '%s' "$CONFIGURATION" | xargs printf '%s\0')
+        fi
+        env "${config_args[@]}" localstack start -d
 
         if [ "$SKIP_WAIT" = false ]; then
-          localstack wait -t ${LS_WAIT_TIMEOUT:-30}  # Let users configure the timeout via env variable
+          localstack wait -t "${LS_WAIT_TIMEOUT:-30}"  # Let users configure the timeout via env variable
         fi
 
       shell: bash
