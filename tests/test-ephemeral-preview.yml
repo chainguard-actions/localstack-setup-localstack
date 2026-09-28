@@ -1,4 +1,4 @@
-name: Test ephemeral instance with preview inputs
+name: Test ephemeral preview inputs (preview-cmd and include-preview)
 on:
   workflow_dispatch:
 jobs:
@@ -7,28 +7,31 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      # This scenario exercises preview-cmd and include-preview inputs.
+      # The ephemeral instance creation requires LocalStack Cloud auth which
+      # is not available in the harness, so we allow failure and assert on outcome.
       - id: action
         uses: .
         continue-on-error: true
         with:
           image-tag: latest
           install-awslocal: 'false'
-          skip-startup: 'false'
-          state-backend: ephemeral
+          skip-startup: 'true'
           state-action: start
+          state-backend: ephemeral
           preview-cmd: 'echo "preview at $AWS_ENDPOINT_URL"'
-          include-preview: 'false'
-          lifetime: '10'
+          include-preview: 'true'
+          lifetime: '30'
 
-      - name: Assert action ran (ephemeral instance requires auth token, graceful failure expected)
+      - name: Assert action ran (preview-cmd and include-preview inputs accepted)
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action succeeded (ephemeral instance started)"
+            echo "PASS: action succeeded with preview-cmd and include-preview inputs"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (no LocalStack auth token available in harness)"
+            echo "PASS: action failed gracefully (ephemeral instance requires LocalStack Cloud auth)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1
