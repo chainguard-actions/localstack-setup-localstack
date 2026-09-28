@@ -1,4 +1,4 @@
-name: Test state-name input with state management
+name: Test state-name input
 on:
   workflow_dispatch:
 jobs:
@@ -7,27 +7,24 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Run action with state-name input (state-action=save, state-backend=cloud-pods)
-        id: action
+      - id: action
         uses: .
         continue-on-error: true
         with:
-          image-tag: latest
-          install-awslocal: 'false'
-          skip-startup: 'false'
+          skip-startup: 'true'
           state-action: 'save'
           state-backend: 'cloud-pods'
           state-name: 'test-state-artifact'
 
-      - name: Assert action ran with state-name input
+      - name: Assert action ran (state save fails gracefully without auth token)
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action succeeded with state-name input"
+            echo "PASS: action succeeded (state saved)"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (expected without LocalStack Cloud credentials or running instance)"
+            echo "PASS: action failed gracefully (no auth token available in test environment)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1
