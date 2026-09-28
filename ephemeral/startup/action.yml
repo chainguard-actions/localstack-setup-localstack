@@ -48,24 +48,25 @@ runs:
       shell: bash
       id: preview-name
       run: |
-        prId=$(<pr-id.txt)
+        prId=$(printf '%s' "$(<pr-id.txt)" | tr -d '\n\r')
         repoName=$GITHUB_REPOSITORY
         repoNameCleaned=$(echo -n "$repoName" | tr -c '[:alnum:]' '-')
         previewName=preview-$repoNameCleaned-$prId
-        echo "previewName=$previewName" >> $GITHUB_ENV
-        echo "name=$previewName" >> $GITHUB_OUTPUT
+        safe_preview_name=$(printf '%s' "$previewName" | tr -d '\n\r')
+        echo "previewName=$safe_preview_name" >> "$GITHUB_ENV"
+        echo "name=$safe_preview_name" >> "$GITHUB_OUTPUT"
 
     - name: Create preview environment
       shell: bash
       id: create-instance
       env:
-        LOCALSTACK_API_KEY_INPUT: ${{ inputs.localstack-api-key }}
+        INPUT_LOCALSTACK_API_KEY: ${{ inputs.localstack-api-key }}
+        INPUT_AUTO_LOAD_POD: ${{ inputs.auto-load-pod }}
+        INPUT_EXTENSION_AUTO_INSTALL: ${{ inputs.extension-auto-install }}
+        INPUT_LIFETIME: ${{ inputs.lifetime }}
         ACTION_PATH: ${{ github.action_path }}
-        AUTO_LOAD_POD_INPUT: ${{ inputs.auto-load-pod }}
-        EXTENSION_AUTO_INSTALL_INPUT: ${{ inputs.extension-auto-install }}
-        LIFETIME_INPUT: ${{ inputs.lifetime }}
       run: |
-        AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${LOCALSTACK_API_KEY_INPUT}}}"
+        AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${INPUT_LOCALSTACK_API_KEY}}}"
         CONTENT_TYPE_HEADER="content-type: application/json"
         API_URL_BASE="https://api.localstack.cloud/v1/compute/instances"
 
@@ -87,9 +88,9 @@ runs:
           exit 1
         fi
 
-        autoLoadPod="${AUTO_LOAD_POD:-${AUTO_LOAD_POD_INPUT}}"
-        extensionAutoInstall="${EXTENSION_AUTO_INSTALL:-${EXTENSION_AUTO_INSTALL_INPUT}}"
-        lifetime="${LIFETIME_INPUT}"
+        autoLoadPod="${AUTO_LOAD_POD:-${INPUT_AUTO_LOAD_POD}}"
+        extensionAutoInstall="${EXTENSION_AUTO_INSTALL:-${INPUT_EXTENSION_AUTO_INSTALL}}"
+        lifetime="${INPUT_LIFETIME}"
 
         instance_exists=$(echo "$list_response" | jq --arg NAME "$previewName" '.[] | select(.instance_name == $NAME)')
 
@@ -160,20 +161,20 @@ runs:
       env:
         PREVIEW_CMD: ${{ inputs.preview-cmd }}
       run: |
-        cmd=()
-        while IFS= read -r -d '' t; do cmd+=("$t"); done \
-          < <(printf '%s' "$PREVIEW_CMD" | xargs printf '%s\0')
-        "${cmd[@]}"
+        PREVIEW_SCRIPT=$(mktemp)
+        printf '%s\n' "$PREVIEW_CMD" > "$PREVIEW_SCRIPT"
+        bash "$PREVIEW_SCRIPT"
+        rm -f "$PREVIEW_SCRIPT"
 
     - name: Print logs of ephemeral instance
       if: ${{ !cancelled() && steps.create-instance.outcome == 'success' }}
       shell: bash
       env:
         previewName: ${{ steps.preview-name.outputs.name }}
-        LOCALSTACK_API_KEY_INPUT: ${{ inputs.localstack-api-key }}
+        INPUT_LOCALSTACK_API_KEY: ${{ inputs.localstack-api-key }}
         ACTION_PATH: ${{ github.action_path }}
       run: |
-        AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${LOCALSTACK_API_KEY_INPUT}}}"
+        AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${INPUT_LOCALSTACK_API_KEY}}}"
         CONTENT_TYPE_HEADER="content-type: application/json"
         API_URL_BASE="https://api.localstack.cloud/v1/compute/instances"
 
