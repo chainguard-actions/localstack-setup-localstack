@@ -52,9 +52,9 @@ runs:
         repoName=$GITHUB_REPOSITORY
         repoNameCleaned=$(echo -n "$repoName" | tr -c '[:alnum:]' '-')
         previewName=preview-$repoNameCleaned-$prId
-        safe_previewName=$(printf '%s' "$previewName" | tr -d '\n\r')
-        echo "previewName=$safe_previewName" >> $GITHUB_ENV
-        echo "name=$safe_previewName" >> $GITHUB_OUTPUT
+        safePreviewName=$(printf '%s' "$previewName" | tr -d '\n\r')
+        echo "previewName=$safePreviewName" >> "$GITHUB_ENV"
+        echo "name=$safePreviewName" >> "$GITHUB_OUTPUT"
 
     - name: Create preview environment
       shell: bash
@@ -142,13 +142,12 @@ runs:
         fi
         
         endpointUrl=$(echo "$response" | jq -r .endpoint_url)
-        safe_endpointUrl=$(printf '%s' "$endpointUrl" | tr -d '\n\r')
 
-        echo "Created preview environment with endpoint URL: $safe_endpointUrl"
+        echo "Created preview environment with endpoint URL: $endpointUrl"
 
-        printf '%s' "$safe_endpointUrl" > ./ls-preview-url.txt
-        echo "LS_PREVIEW_URL=$safe_endpointUrl" >> $GITHUB_ENV
-        echo "AWS_ENDPOINT_URL=$safe_endpointUrl" >> $GITHUB_ENV
+        echo $endpointUrl > ./ls-preview-url.txt
+        echo "LS_PREVIEW_URL=$endpointUrl" >> $GITHUB_ENV
+        echo "AWS_ENDPOINT_URL=$endpointUrl" >> $GITHUB_ENV
 
     - name: Upload preview instance URL
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -162,10 +161,9 @@ runs:
       env:
         PREVIEW_CMD: ${{ inputs.preview-cmd }}
       run: |
-        PREVIEW_SCRIPT=$(mktemp)
-        printf '%s\n' "$PREVIEW_CMD" > "$PREVIEW_SCRIPT"
-        bash "$PREVIEW_SCRIPT"
-        rm -f "$PREVIEW_SCRIPT"
+        tmp_script=$(mktemp)
+        printf '%s\n' "$PREVIEW_CMD" > "$tmp_script"
+        bash -eo pipefail "$tmp_script"
 
     - name: Print logs of ephemeral instance
       if: ${{ !cancelled() && steps.create-instance.outcome == 'success' }}

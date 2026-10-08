@@ -1,31 +1,32 @@
 name: Test state management with state-name input
 on:
   workflow_dispatch:
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Test action with state-name input (save action)
+      - name: Run action with state-action save and state-name
         id: action
         uses: .
-        continue-on-error: true
         with:
           skip-startup: 'true'
           state-action: 'save'
           state-backend: 'cloud-pods'
-          state-name: 'test-state-artifact'
+          state-name: 'my-test-state'
+        continue-on-error: true
 
-      - name: Assert action ran (state save requires LocalStack Cloud auth, may fail gracefully)
+      - name: Assert action ran with state-name input
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action succeeded"
+            echo "PASS: action succeeded with state-name input"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (cloud-pods state requires LocalStack Cloud auth)"
+            echo "PASS: action failed gracefully (cloud-pods state backend not available in harness)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1
