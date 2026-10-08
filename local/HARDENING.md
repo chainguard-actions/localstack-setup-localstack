@@ -16,16 +16,11 @@ Action **localstack--setup-localstack--local/v0.3.0** was hardened automatically
 
 ### script-injection (severity: high)
 
-Sub-rule (b) violation: The `run:` block expands the env var `${NAME}` (sourced from `inputs.name`, a workflow-controllable value) **unquoted** in two shell commands:
-- `localstack state export ${NAME}.zip`
-- `localstack state import ${NAME}.zip`
-
-An unquoted `${NAME}` allows shell metacharacters (`;`, `|`, `&`, whitespace, glob chars, etc.) embedded in the input to be interpreted by the shell, enabling command injection. The fix is to double-quote the expansion: `"${NAME}.zip"`.
+Sub-rule (b) violation: The `run:` block maps `inputs.name` and `inputs.action` into env vars `NAME` and `ACTION`, but then expands them unquoted in shell commands. Specifically, `${NAME}.zip` is unquoted in `localstack state export ${NAME}.zip` and `localstack state import ${NAME}.zip`, and `$NAME` is unquoted in `echo "Saving State $NAME"` / `echo "Loading State $NAME"`. An attacker-controlled input containing shell metacharacters (`;`, `|`, `&`, `$(...)`, glob chars, whitespace) could break out of the intended command. All expansions of workflow-controllable env vars must be double-quoted (e.g., `"${NAME}.zip"`, `"$NAME"`).
 
 Locations:
 
-- `action.yml:44`
-- `action.yml:47`
+- `action.yml:43`
 
 ## Iteration Notes
 
@@ -35,5 +30,5 @@ Locations:
 
 **Notes:**
 
-Fixed unquoted `${NAME}` expansions on lines 44 and 47 of action.yml. Changed `localstack state export ${NAME}.zip` to `localstack state export "${NAME}.zip"` and `localstack state import ${NAME}.zip` to `localstack state import "${NAME}.zip"`. Double-quoting prevents shell metacharacters in the `inputs.name` value from being interpreted by the shell, eliminating the command injection vulnerability.
+Fixed unquoted shell variable expansions in the run block. Changed `localstack state export ${NAME}.zip` to `localstack state export "${NAME}.zip"` and `localstack state import ${NAME}.zip` to `localstack state import "${NAME}.zip"`. The $NAME and $ACTION variables in echo statements were already inside double-quoted strings and were properly quoted. The env vars NAME and ACTION are correctly set from inputs.name and inputs.action in the env block, following the safe pattern of moving expressions out of the shell script body.
 

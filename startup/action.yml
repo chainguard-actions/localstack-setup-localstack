@@ -55,7 +55,7 @@ runs:
     #     github-token: ${{ inputs.github-token }}
     #     ci-project: ${{ inputs.ci-project }}
     - run: >
-        echo "GH_ACTION_ROOT=$(cd "$GITHUB_ACTION_PATH/.." && pwd)" >> $GITHUB_ENV
+        echo "GH_ACTION_ROOT=./$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH/..")" >> $GITHUB_ENV
 
       shell: bash
     - name: Install tools
@@ -75,30 +75,17 @@ runs:
           if [ "x$LOCALSTACK_AUTH_TOKEN" = "x" -a "x$LOCALSTACK_API_KEY" = "x" ]; then
             echo "WARNING: LocalStack Auth Token not detected, please verify your configuration..."
           fi
-          export DNS_ADDRESS=127.0.0.1
+          CONFIGURATION="DNS_ADDRESS=127.0.0.1 ${CONFIGURATION}"
           IMAGE_NAME="${IMAGE_NAME:-localstack/localstack-pro:${IMAGE_TAG}}"
         else
           IMAGE_NAME="${IMAGE_NAME:-localstack/localstack:${IMAGE_TAG}}"
         fi
 
-        export IMAGE_NAME
-
-        # Safely parse KEY=VALUE pairs from CONFIGURATION using xargs tokenization.
-        # This avoids unquoted expansion of attacker-controlled input in the env command.
-        if [ -n "$CONFIGURATION" ]; then
-          while IFS= read -r -d '' token; do
-            case "$token" in
-              *=*)
-                key="${token%%=*}"
-                val="${token#*=}"
-                export "$key=$val"
-                ;;
-            esac
-          done < <(printf '%s' "$CONFIGURATION" | xargs printf '%s\0')
-        fi
-
+        CONFIGURATION="IMAGE_NAME=${IMAGE_NAME} ${CONFIGURATION}"
         docker pull "${IMAGE_NAME}" &
-        localstack start -d
+
+        # Use env -S to safely expand KEY=VALUE pairs from CONFIGURATION without eval
+        env -S "${CONFIGURATION}" localstack start -d
 
         if [ "$SKIP_WAIT" = false ]; then
           localstack wait -t "${LS_WAIT_TIMEOUT:-30}"  # Let users configure the timeout via env variable

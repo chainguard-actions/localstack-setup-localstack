@@ -16,12 +16,17 @@ Action **localstack--setup-localstack--cloud-pods/v0.3.0** was hardened automati
 
 ### script-injection (severity: high)
 
-Sub-rule (b): The env var $NAME, which holds the value of inputs.name (an untrusted caller-controlled input), is expanded unquoted in two shell commands inside the run block: `localstack pod save $NAME` and `localstack pod load --yes $NAME`. An attacker can supply a value containing shell metacharacters (e.g. semicolons, backticks, $(...)) to inject arbitrary commands. The fix is to double-quote the expansion: `localstack pod save "$NAME"` and `localstack pod load --yes "$NAME"`.
+Sub-rule (b) violation: The shell variable $NAME, which holds the user-controlled input `inputs.name` (mapped via the env: block), is expanded **unquoted** in two `localstack` CLI invocations inside the run: block. An unquoted expansion allows the shell to parse metacharacters (spaces, globs, semicolons, command substitution, etc.) out of the value, enabling command injection. Offending lines:
+  Line 21: `localstack pod save $NAME`
+  Line 23: `localstack pod load --yes $NAME`
+Fix: quote the variable — `localstack pod save "$NAME"` and `localstack pod load --yes "$NAME"`.
+
+Note: $ACTION is always used inside double-quoted strings or quoted comparisons, so it does not trigger this finding.
 
 Locations:
 
-- `action.yml:22`
-- `action.yml:25`
+- `action.yml:21`
+- `action.yml:23`
 
 ## Iteration Notes
 
@@ -31,5 +36,5 @@ Locations:
 
 **Notes:**
 
-Fixed two unquoted `$NAME` variable expansions in action.yml. Changed `localstack pod save $NAME` to `localstack pod save "$NAME"` and `localstack pod load --yes $NAME` to `localstack pod load --yes "$NAME"`. The variable is already correctly moved to the env block (using `${{ inputs.name }}`), but the shell expansion was unquoted, allowing shell metacharacter injection. Double-quoting prevents word splitting and command injection.
+Quoted the $NAME variable in both localstack CLI invocations in action.yml: changed `localstack pod save $NAME` to `localstack pod save "$NAME"` and `localstack pod load --yes $NAME` to `localstack pod load --yes "$NAME"`. The values are already correctly mapped through the env: block, so only the unquoted shell expansions needed to be fixed.
 
