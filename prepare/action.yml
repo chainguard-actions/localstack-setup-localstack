@@ -33,7 +33,7 @@ runs:
         PR_NUMBER: ${{ github.event.number }}
       run: echo "$PR_NUMBER" > ./pr-id.txt
     - name: Upload PR number
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      uses: chainguard-actions/actions-upload-artifact@58b2f77fde711fbc8c271d0e5877c5d7d9a19733 # v6
       with:
         name: pr-id
         path: ./pr-id.txt

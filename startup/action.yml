@@ -58,7 +58,7 @@ runs:
 
       shell: bash
     - name: Install tools
-      uses: jenseng/dynamic-uses@5175289a9a87978dcfcb9cf512b821d23b2a53eb # v1
+      uses: chainguard-actions/jenseng-dynamic-uses@72a5e3b1be8e44fca7784903e1ae14ea25778f99 # v1
       with:
         uses: ${{ env.GH_ACTION_ROOT }}/tools
         with: |-
