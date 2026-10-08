@@ -33,7 +33,7 @@ runs:
     - name: Download current workflow's Local State artifact
       id: get-state-artifact
       if: ${{ inputs.action == 'load' }}
-      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 #v7
+      uses: chainguard-actions/actions-download-artifact@cc673c30092424d3cb15266c177e77aef02c577e #v7
       continue-on-error: true
       with:
         name: ${{ inputs.name }}
@@ -61,7 +61,7 @@ runs:
         NAME: "${{ inputs.name }}"
         ACTION: "${{ inputs.action }}"
     - name: Upload LocalStack State
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      uses: chainguard-actions/actions-upload-artifact@58b2f77fde711fbc8c271d0e5877c5d7d9a19733 # v6
       if: ${{ inputs.action == 'save' }}
       with:
         name: ${{ inputs.name }}
