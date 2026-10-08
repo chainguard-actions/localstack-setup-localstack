@@ -22,30 +22,31 @@ runs:
       id: pr
       shell: bash
       run: |
-        safe_pr_id=$(printf '%s' "$(<pr-id.txt)" | tr -d '\n\r')
-        echo "pr_id=$safe_pr_id" >> "$GITHUB_OUTPUT"
+        raw=$(<pr-id.txt)
+        safe=$(printf '%s' "$raw" | tr -d '\n\r')
+        echo "pr_id=$safe" >> "$GITHUB_OUTPUT"
 
     - name: Setup preview name
       shell: bash
       run: |
-        prId=$(printf '%s' "$(<pr-id.txt)" | tr -d '\n\r')
+        prId=$(<pr-id.txt)
         repoName=$GITHUB_REPOSITORY
         repoNameCleaned=$(echo -n "$repoName" | tr -c '[:alnum:]' '-')
         previewName=preview-$repoNameCleaned-$prId
-        safe_preview_name=$(printf '%s' "$previewName" | tr -d '\n\r')
-        echo "previewName=$safe_preview_name" >> "$GITHUB_ENV"
+        safePreviewName=$(printf '%s' "$previewName" | tr -d '\n\r')
+        echo "previewName=$safePreviewName" >> "$GITHUB_ENV"
 
     - name: Shutdown ephemeral instance
       shell: bash
       env:
-        INPUT_LOCALSTACK_API_KEY: ${{ inputs.localstack-api-key }}
+        LOCALSTACK_API_KEY_INPUT: ${{ inputs.localstack-api-key }}
         ACTION_PATH: ${{ github.action_path }}
       run: |
-        AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${INPUT_LOCALSTACK_API_KEY}}}"
+        AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-$LOCALSTACK_API_KEY_INPUT}}"
         CONTENT_TYPE_HEADER="content-type: application/json"
         API_URL_BASE="https://api.localstack.cloud/v1/compute/instances"
 
-        source "${ACTION_PATH}/../retry-function.sh"
+        source "$ACTION_PATH/../retry-function.sh"
         shutdown_instance() {
             # The API returns a 200 on successful deletion.
             # We use --fail-with-body so curl fails on server errors (5xx) and triggers the retry.
