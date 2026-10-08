@@ -1,4 +1,4 @@
-name: Test ephemeral preview inputs (preview-cmd and include-preview)
+name: Test preview URL inputs
 on:
   workflow_dispatch:
 jobs:
@@ -11,14 +11,12 @@ jobs:
         uses: .
         continue-on-error: true
         with:
-          skip-startup: 'true'
-          state-backend: 'ephemeral'
-          state-action: 'start'
-          preview-cmd: 'echo "preview ready at $AWS_ENDPOINT_URL"'
-          include-preview: 'true'
-          lifetime: '30'
+          github-token: ${{ github.token }}
+          ci-project: my-ci-project
+          include-preview: "true"
+          preview-url: "https://preview.example.com"
 
-      - name: Assert action ran (ephemeral instance creation expected to fail without credentials)
+      - name: Assert action ran (fails gracefully without pr-id artifact or sentinel repo)
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
@@ -26,7 +24,7 @@ jobs:
           if [ "$OUTCOME" = "success" ]; then
             echo "PASS: action succeeded"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (no LocalStack credentials available)"
+            echo "PASS: action failed gracefully (no pr-id artifact / sentinel repo not resolvable)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

@@ -14,17 +14,18 @@ jobs:
           skip-startup: 'true'
           state-action: 'save'
           state-backend: 'cloud-pods'
-          state-name: 'test-state-artifact'
+          state-name: 'my-test-state'
+          install-awslocal: 'false'
 
-      - name: Assert action ran (state save fails gracefully without auth token)
+      - name: Assert action ran (state management expected to fail without credentials)
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action succeeded (state saved)"
+            echo "PASS: action succeeded"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (no auth token available in test environment)"
+            echo "PASS: action failed gracefully (no LocalStack credentials available)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1
