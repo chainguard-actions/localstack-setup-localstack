@@ -16,17 +16,15 @@ Action **localstack--setup-localstack--cloud-pods/v0.3.0** was hardened automati
 
 ### script-injection (severity: high)
 
-Sub-rule (b) violation: The shell variable $NAME, which holds the user-controlled input `inputs.name` (mapped via the env: block), is expanded **unquoted** in two `localstack` CLI invocations inside the run: block. An unquoted expansion allows the shell to parse metacharacters (spaces, globs, semicolons, command substitution, etc.) out of the value, enabling command injection. Offending lines:
-  Line 21: `localstack pod save $NAME`
-  Line 23: `localstack pod load --yes $NAME`
-Fix: quote the variable — `localstack pod save "$NAME"` and `localstack pod load --yes "$NAME"`.
-
-Note: $ACTION is always used inside double-quoted strings or quoted comparisons, so it does not trigger this finding.
+Rule (b) violation: The env var $NAME, which holds the value of inputs.name (a workflow-controllable input), is used unquoted in two shell commands inside the run: block. Unquoted shell variable expansion allows an attacker to inject shell metacharacters (e.g. semicolons, pipes, backticks) via the `name` input, leading to arbitrary command execution. Offending lines:
+  - `localstack pod save $NAME` (line 21)
+  - `localstack pod load --yes $NAME` (line 24)
+Fix: quote the variable in both places: `localstack pod save "$NAME"` and `localstack pod load --yes "$NAME"`.
 
 Locations:
 
 - `action.yml:21`
-- `action.yml:23`
+- `action.yml:24`
 
 ## Iteration Notes
 
@@ -36,5 +34,5 @@ Locations:
 
 **Notes:**
 
-Quoted the $NAME variable in both localstack CLI invocations in action.yml: changed `localstack pod save $NAME` to `localstack pod save "$NAME"` and `localstack pod load --yes $NAME` to `localstack pod load --yes "$NAME"`. The values are already correctly mapped through the env: block, so only the unquoted shell expansions needed to be fixed.
+Quoted the $NAME variable in both shell commands in action.yml: `localstack pod save "$NAME"` (line 21) and `localstack pod load --yes "$NAME"` (line 24). The variable was already correctly moved to the env: block; only the missing quotes needed to be added to prevent shell metacharacter injection via the `name` input.
 

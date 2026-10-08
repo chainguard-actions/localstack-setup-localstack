@@ -16,7 +16,7 @@ Action **localstack--setup-localstack--local/v0.3.0** was hardened automatically
 
 ### script-injection (severity: high)
 
-Sub-rule (b) violation: The `run:` block maps `inputs.name` and `inputs.action` into env vars `NAME` and `ACTION`, but then expands them unquoted in shell commands. Specifically, `${NAME}.zip` is unquoted in `localstack state export ${NAME}.zip` and `localstack state import ${NAME}.zip`, and `$NAME` is unquoted in `echo "Saving State $NAME"` / `echo "Loading State $NAME"`. An attacker-controlled input containing shell metacharacters (`;`, `|`, `&`, `$(...)`, glob chars, whitespace) could break out of the intended command. All expansions of workflow-controllable env vars must be double-quoted (e.g., `"${NAME}.zip"`, `"$NAME"`).
+Sub-rule (b): The `run:` block expands env vars `$NAME` and `$ACTION` (sourced from `inputs.name` and `inputs.action`) without double-quoting in several shell commands. Specifically, `localstack state export ${NAME}.zip` and `localstack state import ${NAME}.zip` use unquoted `${NAME}`, and `echo "Invalid action: $ACTION"` is the only quoted use — but `echo "Saving State $NAME"` and `echo "Loading State $NAME"` are inside double-quotes while the `localstack` command arguments are not. An attacker-controlled `inputs.name` containing shell metacharacters (e.g. spaces, semicolons, glob characters) could cause command injection. All expansions of workflow-controllable env vars must be double-quoted: e.g. `localstack state export "${NAME}.zip"`.
 
 Locations:
 
@@ -30,5 +30,5 @@ Locations:
 
 **Notes:**
 
-Fixed unquoted shell variable expansions in the run block. Changed `localstack state export ${NAME}.zip` to `localstack state export "${NAME}.zip"` and `localstack state import ${NAME}.zip` to `localstack state import "${NAME}.zip"`. The $NAME and $ACTION variables in echo statements were already inside double-quoted strings and were properly quoted. The env vars NAME and ACTION are correctly set from inputs.name and inputs.action in the env block, following the safe pattern of moving expressions out of the shell script body.
+Fixed unquoted ${NAME} variable expansions in the run: block of action.yml. Changed `localstack state export ${NAME}.zip` to `localstack state export "${NAME}.zip"` and `localstack state import ${NAME}.zip` to `localstack state import "${NAME}.zip"`. The NAME and ACTION variables were already correctly sourced via the step's env: block rather than inline ${{ }} expressions, so only the missing double-quotes needed to be added to prevent word-splitting and glob expansion on attacker-controlled input.
 

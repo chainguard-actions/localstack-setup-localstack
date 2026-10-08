@@ -16,27 +16,23 @@ Action **localstack--setup-localstack--finish/v0.3.0** was hardened automaticall
 
 ### script-injection (severity: high)
 
-Sub-rule (a): The 'Load the Ephemeral Instance URL' run: block directly interpolates the untrusted expression `${{ inputs.preview-url }}` inside the shell script string. This allows an attacker-controlled value to be parsed by bash before any quoting takes effect. Offending lines:
-  `if [[ -n "${LS_PREVIEW_URL:-${{ inputs.preview-url }}}" ]]; then`
-  `echo "LS_PREVIEW_URL=${LS_PREVIEW_URL:-${{ inputs.preview-url }}}" >> $GITHUB_ENV`
-The value should be passed via an `env:` block and then double-quoted in the shell script.
+Sub-rule (a) violation: `${{ inputs.preview-url }}` is directly interpolated inside a `run:` shell script in the 'Load the Ephemeral Instance URL' step. The YAML template engine substitutes the expression before the shell processes it, allowing an attacker to inject arbitrary shell commands via the `preview-url` input. Offending lines:
+  Line 65: `if [[ -n "${LS_PREVIEW_URL:-${{ inputs.preview-url }}}" ]]; then`
+  Line 66: `echo "LS_PREVIEW_URL=${LS_PREVIEW_URL:-${{ inputs.preview-url }}}" >> $GITHUB_ENV`
 
 Locations:
 
-- `action.yml:62`
-- `action.yml:63`
+- `action.yml:65`
+- `action.yml:66`
 
 ### github-env-injection (severity: high)
 
-The 'Load the Ephemeral Instance URL' run: block writes untrusted values to $GITHUB_ENV without sanitization:
-(1) `${{ inputs.preview-url }}` is interpolated directly into the echo command that writes to $GITHUB_ENV — an attacker-controlled input can inject newlines to set arbitrary environment variables (sub-rule b/d).
-(2) `${LS_PREVIEW_URL}` is an inherited process env var (set by the calling workflow, not by this run: block) and is forwarded to $GITHUB_ENV without the required `printf '%s' ... | tr -d '\n\r'` sanitization step (sub-rule e).
-Both writes allow environment variable injection via newline characters.
+The 'Load the Ephemeral Instance URL' step writes a value derived from the untrusted input `${{ inputs.preview-url }}` directly to `$GITHUB_ENV` without the required sanitization step (`printf '%s' ... | tr -d '\n\r'`). A newline character in `preview-url` could inject additional environment variable definitions, potentially overwriting security-sensitive variables used by subsequent steps. Offending line:
+  Line 66: `echo "LS_PREVIEW_URL=${LS_PREVIEW_URL:-${{ inputs.preview-url }}}" >> $GITHUB_ENV`
 
 Locations:
 
-- `action.yml:62`
-- `action.yml:63`
+- `action.yml:66`
 
 ### static-inline-injection (severity: high)
 
@@ -62,7 +58,7 @@ Locations:
 
 **Notes:**
 
-Fixed the 'Load the Ephemeral Instance URL' step in action.yml: (1) Moved `${{ inputs.preview-url }}` from the run: shell script into an env: block as INPUT_PREVIEW_URL, eliminating direct shell interpolation of the untrusted expression. (2) Replaced all direct ${{ inputs.preview-url }} references in the shell script with the env var $INPUT_PREVIEW_URL. (3) Added newline sanitization for all user-controlled values written to $GITHUB_ENV using `printf '%s' "$value" | tr -d '\n\r'`, following the two-step capture-then-sanitize pattern to correctly handle bash errexit semantics.
+Fixed the 'Load the Ephemeral Instance URL' step in action.yml: (1) Moved ${{ inputs.preview-url }} out of the run: shell script into an env: block as INPUT_PREVIEW_URL, referencing it as $INPUT_PREVIEW_URL in the shell. (2) Added sanitization using `printf '%s' "..." | tr -d '\n\r'` before writing to $GITHUB_ENV to prevent newline-based environment variable injection. Also sanitized the ls-preview-url.txt file read path for consistency.
 
 ### Iteration 1
 
@@ -70,5 +66,5 @@ Fixed the 'Load the Ephemeral Instance URL' step in action.yml: (1) Moved `${{ i
 
 **Notes:**
 
-Fixed the 'Load the PR ID' step in hardened/action/action.yml (line 42). The original code `echo "pr_id=$(<pr-id.txt)" >> $GITHUB_OUTPUT` read externally-controlled file content directly into GITHUB_OUTPUT without sanitization. The fix captures the raw content first, then sanitizes it with `printf '%s' "$raw" | tr -d '\n\r'` to strip newline/carriage-return characters before writing to GITHUB_OUTPUT, preventing injection of additional key=value pairs.
+Fixed the 'Load the PR ID' step in action.yml (line 38) to sanitize the content read from pr-id.txt before writing to $GITHUB_OUTPUT. Changed from `echo "pr_id=$(<pr-id.txt)" >> $GITHUB_OUTPUT` to a multi-line script that reads into a `raw` variable, strips newlines with `printf '%s' "$raw" | tr -d '\n\r'`, then writes the sanitized value. This prevents newline injection attacks where attacker-controlled artifact content could inject additional key-value pairs into the GitHub output environment file.
 

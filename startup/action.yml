@@ -83,12 +83,16 @@ runs:
 
         CONFIGURATION="IMAGE_NAME=${IMAGE_NAME} ${CONFIGURATION}"
         docker pull "${IMAGE_NAME}" &
-
-        # Use env -S to safely expand KEY=VALUE pairs from CONFIGURATION without eval
-        env -S "${CONFIGURATION}" localstack start -d
+        export CI_PROJECT="$CI_PROJECT_INPUT"
+        cfg_args=()
+        if [ -n "$CONFIGURATION" ]; then
+          while IFS= read -r -d '' t; do cfg_args+=("$t"); done \
+            < <(printf '%s' "$CONFIGURATION" | xargs printf '%s\0')
+        fi
+        env "${cfg_args[@]}" localstack start -d
 
         if [ "$SKIP_WAIT" = false ]; then
-          localstack wait -t "${LS_WAIT_TIMEOUT:-30}"  # Let users configure the timeout via env variable
+          localstack wait -t ${LS_WAIT_TIMEOUT:-30}  # Let users configure the timeout via env variable
         fi
       shell: bash
       env:
@@ -97,4 +101,4 @@ runs:
         USE_PRO: ${{ inputs.use-pro }}
         CONFIGURATION: ${{ inputs.configuration }}
         SKIP_WAIT: ${{ inputs.skip-wait }}
-        CI_PROJECT: ${{ inputs.ci-project }}
+        CI_PROJECT_INPUT: ${{ inputs.ci-project }}

