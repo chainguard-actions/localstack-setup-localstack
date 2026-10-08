@@ -1,4 +1,4 @@
-name: Test with preview URL inputs (include-preview and preview-url)
+name: Test with include-preview and preview-url inputs
 on:
   workflow_dispatch:
 jobs:
@@ -7,16 +7,20 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      # Pre-create pr-id.txt so the "Load the PR ID" step doesn't fail even
+      # when the artifact download steps fail (no artifacts exist under act).
+      - name: Pre-create pr-id.txt
+        run: echo "99" > "$GITHUB_WORKSPACE/pr-id.txt"
+
       - id: action
         uses: .
         continue-on-error: true
         with:
           github-token: ${{ github.token }}
-          ci-project: my-ci-project
           include-preview: "true"
-          preview-url: "https://preview.example.localstack.cloud/instance/abc123"
+          preview-url: "https://preview.example.localstack.cloud"
 
-      - name: Assert action ran (fails gracefully on sentinel repo — no artifacts, no real PR)
+      - name: Assert action ran (succeeds or fails gracefully on sentinel repo)
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
@@ -24,7 +28,7 @@ jobs:
           if [ "$OUTCOME" = "success" ]; then
             echo "PASS: action succeeded"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (sentinel repo — artifact/PR not available)"
+            echo "PASS: action failed gracefully (expected under sentinel repo / no real artifacts)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

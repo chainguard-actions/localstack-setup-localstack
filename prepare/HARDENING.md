@@ -16,17 +16,11 @@ Action **localstack--setup-localstack--prepare/v0.3.1** was hardened automatical
 
 ### script-injection (severity: high)
 
-Sub-rule (a) violation: A GitHub Actions expression is directly interpolated inside a `run:` shell command string. On line 17, `run: echo ${{ github.event.number }} > ./pr-id.txt` embeds `${{ github.event.number }}` directly in the shell command. The value is substituted by the Actions runner before the shell parses it, allowing an attacker who can control the PR number (e.g. via a crafted event payload) to inject arbitrary shell commands. Fix: move the value into an `env:` variable and reference it as a quoted shell variable, e.g.:
-
-```yaml
-env:
-  PR_NUMBER: ${{ github.event.number }}
-run: echo "$PR_NUMBER" > ./pr-id.txt
-```
+Sub-rule (a): A GitHub Actions expression is directly interpolated inside a `run:` shell command string. On line 16, `run: echo ${{ github.event.number }} > ./pr-id.txt` embeds `${{ github.event.number }}` directly in the shell command. The value is substituted into the shell command before the shell parses it, allowing an attacker who can control the event number (e.g. via a crafted event payload) to inject arbitrary shell commands. Fix: move the value into an `env:` variable and reference it as a quoted shell variable, e.g. `env: { PR_NUMBER: "${{ github.event.number }}" }` and `run: echo "$PR_NUMBER" > ./pr-id.txt`.
 
 Locations:
 
-- `action.yml:17`
+- `action.yml:16`
 
 ## Iteration Notes
 
@@ -36,5 +30,5 @@ Locations:
 
 **Notes:**
 
-Fixed script-injection in hardened/action/action.yml line 17: moved `${{ github.event.number }}` from the `run:` shell command into an `env:` block as `PR_NUMBER`, and updated the shell command to use the quoted variable `"$PR_NUMBER"` instead of the direct expression interpolation.
+Fixed script injection on line 16 of action.yml: moved `${{ github.event.number }}` out of the `run:` shell command and into an `env:` block as `PR_NUMBER`. The shell command now uses `echo "$PR_NUMBER" > ./pr-id.txt` instead of directly interpolating the GitHub expression.
 

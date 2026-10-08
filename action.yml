@@ -99,7 +99,8 @@ runs:
         curl "${args[@]}" \
           -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
           "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
-    - run: echo "GH_ACTION_ROOT=$GITHUB_ACTION_PATH" >> $GITHUB_ENV
+    - run: |
+        echo "GH_ACTION_ROOT=./$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH")" >> $GITHUB_ENV
       shell: bash
     - name: Install tools
       uses: chainguard-actions/jenseng-dynamic-uses@e233ad773207103f3272e900879a8f27c34acfba # v1

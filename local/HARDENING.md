@@ -16,12 +16,12 @@ Action **localstack--setup-localstack--local/v0.3.1** was hardened automatically
 
 ### script-injection (severity: high)
 
-Rule (b) violation: The `run:` block uses `${NAME}.zip` unquoted in two shell commands (`localstack state export ${NAME}.zip` and `localstack state import ${NAME}.zip`). The `NAME` env var is sourced directly from `inputs.name` (an untrusted, caller-controlled input). An unquoted shell expansion allows an attacker to supply a value containing shell metacharacters (spaces, globs, semicolons, `$(...)`, etc.) that the shell will interpret before passing to the command, enabling command injection. The fix is to quote the expansion: `"${NAME}.zip"`.
+Rule (b) violation: The run: block uses unquoted shell variable expansions of `${NAME}` (sourced from `inputs.name` via env:) in two localstack commands: `localstack state export ${NAME}.zip` and `localstack state import ${NAME}.zip`. Because `${NAME}` is not double-quoted, an attacker-controlled value in `inputs.name` containing shell metacharacters (`;`, `|`, `&`, `$(...)`, whitespace, glob chars) would be parsed by the shell, enabling command injection. The fix is to quote the expansions: `localstack state export "${NAME}.zip"` and `localstack state import "${NAME}.zip"`.
 
 Locations:
 
-- `action.yml:46`
-- `action.yml:49`
+- `action.yml:44`
+- `action.yml:47`
 
 ## Iteration Notes
 
@@ -31,5 +31,5 @@ Locations:
 
 **Notes:**
 
-Quoted the two unquoted `${NAME}.zip` shell expansions in action.yml (lines 46 and 49) to `"${NAME}.zip"`. The NAME variable is already safely passed via the step's env block from `inputs.name`, but the unquoted expansion allowed shell metacharacters (spaces, globs, semicolons, etc.) to be interpreted. Adding double quotes prevents word splitting and glob expansion, eliminating the injection risk.
+Fixed script injection vulnerability in hardened/action/action.yml at lines 44 and 47. The unquoted `${NAME}.zip` expansions in `localstack state export ${NAME}.zip` and `localstack state import ${NAME}.zip` were changed to `"${NAME}.zip"` (double-quoted). This prevents attacker-controlled values in `inputs.name` containing shell metacharacters (`;`, `|`, `&`, `$(...)`, whitespace, glob chars) from being interpreted by the shell. The `NAME` variable was already correctly sourced from `inputs.name` via the step's `env:` block — only the quoting was missing.
 

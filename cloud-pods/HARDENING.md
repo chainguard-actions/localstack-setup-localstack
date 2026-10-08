@@ -16,16 +16,12 @@ Action **localstack--setup-localstack--cloud-pods/v0.3.1** was hardened automati
 
 ### script-injection (severity: high)
 
-Rule (b) violation: The env var $NAME holds the value of `inputs.name` (a workflow-controllable input) and is expanded **unquoted** in two shell commands inside the `run:` block:
-  - `localstack pod save $NAME` (line 21)
-  - `localstack pod load --yes $NAME` (line 24)
-
-An attacker-controlled value containing shell metacharacters (`;`, `|`, `&`, `$(...)`, whitespace, glob chars) in `inputs.name` will be parsed by the shell, enabling command injection. The fix is to double-quote every expansion: `localstack pod save "$NAME"` and `localstack pod load --yes "$NAME"`.
+Rule (b) violation: The shell variable $NAME, which holds the value of inputs.name (an attacker-controlled input), is expanded unquoted in two run: commands: `localstack pod save $NAME` and `localstack pod load --yes $NAME`. An unquoted expansion allows the shell to parse metacharacters (semicolons, pipes, backticks, spaces, glob characters, etc.) from the value, enabling command injection. The variable must be double-quoted: `localstack pod save "$NAME"` and `localstack pod load --yes "$NAME"`.
 
 Locations:
 
-- `action.yml:21`
-- `action.yml:24`
+- `action.yml:20`
+- `action.yml:23`
 
 ## Iteration Notes
 
@@ -35,5 +31,5 @@ Locations:
 
 **Notes:**
 
-Fixed two unquoted $NAME variable expansions in action.yml. Changed `localstack pod save $NAME` to `localstack pod save "$NAME"` and `localstack pod load --yes $NAME` to `localstack pod load --yes "$NAME"`. The variable was already correctly placed in the env: block; only the shell-level quoting was missing.
+Fixed two unquoted $NAME variable expansions in action.yml. Changed `localstack pod save $NAME` to `localstack pod save "$NAME"` and `localstack pod load --yes $NAME` to `localstack pod load --yes "$NAME"`. The inputs.name value was already correctly placed in the env: block, so only the quoting of the shell variable needed to be fixed to prevent command injection via shell metacharacters.
 
