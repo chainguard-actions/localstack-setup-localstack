@@ -49,12 +49,13 @@ runs:
       id: preview-name
       run: |
         prId=$(<pr-id.txt)
+        prId=$(printf '%s' "$prId" | tr -d '\n\r')
         repoName=$GITHUB_REPOSITORY
         repoNameCleaned=$(echo -n "$repoName" | tr -c '[:alnum:]' '-')
         previewName=preview-$repoNameCleaned-$prId
-        safePreviewName=$(printf '%s' "$previewName" | tr -d '\n\r')
-        echo "previewName=$safePreviewName" >> "$GITHUB_ENV"
-        echo "name=$safePreviewName" >> "$GITHUB_OUTPUT"
+        safe=$(printf '%s' "$previewName" | tr -d '\n\r')
+        echo "previewName=$safe" >> "$GITHUB_ENV"
+        echo "name=$safe" >> "$GITHUB_OUTPUT"
 
     - name: Create preview environment
       shell: bash
@@ -123,7 +124,7 @@ runs:
 
         create_instance_func() {
             local response
-            response=$(curl --fail-with-body -s -X POST -d "{\"instance_name\": \"${previewName}\", \"lifetime\": \"${lifetime}\" ,\"env_vars\": {\"AUTO_LOAD_POD\": \"${autoLoadPod}\", \"EXTENSION_AUTO_INSTALL\": \"${extensionAutoInstall}\"}}"\
+            response=$(curl --fail-with-body -s -X POST -d "{\"instance_name\": \"${previewName}\", \"lifetime\": ${lifetime} ,\"env_vars\": {\"AUTO_LOAD_POD\": \"${autoLoadPod}\", \"EXTENSION_AUTO_INSTALL\": \"${extensionAutoInstall}\"}}"\
                 -H "$AUTH_HEADER" \
                 -H "$CONTENT_TYPE_HEADER" \
                 "$API_URL_BASE")
@@ -142,13 +143,13 @@ runs:
         fi
         
         endpointUrl=$(echo "$response" | jq -r .endpoint_url)
-        safeEndpointUrl=$(printf '%s' "$endpointUrl" | tr -d '\n\r')
 
-        echo "Created preview environment with endpoint URL: $safeEndpointUrl"
+        echo "Created preview environment with endpoint URL: $endpointUrl"
 
-        echo "$safeEndpointUrl" > ./ls-preview-url.txt
-        echo "LS_PREVIEW_URL=$safeEndpointUrl" >> "$GITHUB_ENV"
-        echo "AWS_ENDPOINT_URL=$safeEndpointUrl" >> "$GITHUB_ENV"
+        echo $endpointUrl > ./ls-preview-url.txt
+        safe_endpoint=$(printf '%s' "$endpointUrl" | tr -d '\n\r')
+        echo "LS_PREVIEW_URL=$safe_endpoint" >> $GITHUB_ENV
+        echo "AWS_ENDPOINT_URL=$safe_endpoint" >> $GITHUB_ENV
 
     - name: Upload preview instance URL
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -162,9 +163,10 @@ runs:
       env:
         PREVIEW_CMD: ${{ inputs.preview-cmd }}
       run: |
-        printf '%s\n' "$PREVIEW_CMD" > /tmp/_preview_cmd.sh
-        bash /tmp/_preview_cmd.sh
-        rm -f /tmp/_preview_cmd.sh
+        _preview_script=$(mktemp)
+        printf '%s\n' "$PREVIEW_CMD" > "$_preview_script"
+        bash "$_preview_script"
+        rm -f "$_preview_script"
 
     - name: Print logs of ephemeral instance
       if: ${{ !cancelled() && steps.create-instance.outcome == 'success' }}

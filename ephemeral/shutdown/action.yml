@@ -22,18 +22,20 @@ runs:
       id: pr
       shell: bash
       run: |
-        safe=$(printf '%s' "$(<pr-id.txt)" | tr -d '\n\r')
+        raw=$(<pr-id.txt)
+        safe=$(printf '%s' "$raw" | tr -d '\n\r')
         echo "pr_id=$safe" >> "$GITHUB_OUTPUT"
 
     - name: Setup preview name
       shell: bash
       run: |
         prId=$(<pr-id.txt)
+        prId=$(printf '%s' "$prId" | tr -d '\n\r')
         repoName=$GITHUB_REPOSITORY
         repoNameCleaned=$(echo -n "$repoName" | tr -c '[:alnum:]' '-')
         previewName=preview-$repoNameCleaned-$prId
-        safePreviewName=$(printf '%s' "$previewName" | tr -d '\n\r')
-        echo "previewName=$safePreviewName" >> "$GITHUB_ENV"
+        safe=$(printf '%s' "$previewName" | tr -d '\n\r')
+        echo "previewName=$safe" >> "$GITHUB_ENV"
 
     - name: Shutdown ephemeral instance
       shell: bash

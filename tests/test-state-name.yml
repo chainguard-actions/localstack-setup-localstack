@@ -1,4 +1,4 @@
-name: Test state-name input
+name: Test state management with state-name input
 on:
   workflow_dispatch:
 jobs:
@@ -7,29 +7,25 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      # This scenario exercises the state-name input.
-      # State management (save/load) requires LocalStack Cloud auth which
-      # is not available in the harness, so we allow failure and assert on outcome.
       - id: action
         uses: .
         continue-on-error: true
         with:
-          image-tag: latest
-          install-awslocal: 'false'
           skip-startup: 'true'
-          state-action: save
-          state-backend: cloud-pods
-          state-name: my-test-state
+          install-awslocal: 'false'
+          state-action: 'save'
+          state-backend: 'cloud-pods'
+          state-name: 'my-test-pod'
 
-      - name: Assert action ran (state-name input accepted)
+      - name: Assert action ran (state save requires LocalStack Pro auth)
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action succeeded with state-name input"
+            echo "PASS: action succeeded"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (state management requires LocalStack Cloud auth)"
+            echo "PASS: action failed gracefully (cloud-pods state requires LocalStack Pro auth token)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

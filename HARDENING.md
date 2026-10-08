@@ -10,64 +10,40 @@
 
 **Harden Agent Version:** `2`
 
-Action **localstack--setup-localstack/v0.2.5** was hardened automatically. 2 finding(s) were identified and resolved across 5 iteration(s).
+Action **localstack--setup-localstack/v0.2.5** was hardened automatically. 2 finding(s) were identified and resolved across 4 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-Multiple run: blocks directly interpolate ${{ }} expressions inside shell commands (sub-rule a), allowing script injection. Key violations:
-
-1. prepare/action.yml line 16: `run: echo ${{ github.event.number }} > ./pr-id.txt` — github context interpolated directly into shell.
-
-2. startup/action.yml line 57: `export CI_PROJECT=${{ inputs.ci-project }}` — inputs interpolated directly into shell assignment.
-
-3. ephemeral/startup/action.yml line 57 (create-instance step): `AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${{ inputs.localstack-api-key }}}}"` — inputs interpolated into shell string.
-
-4. ephemeral/startup/action.yml line 60: `source ${{ github.action_path }}/../retry-function.sh` — github context interpolated into shell path.
-
-5. ephemeral/startup/action.yml line 79: `autoLoadPod="${AUTO_LOAD_POD:-${{ inputs.auto-load-pod }}}"` — inputs interpolated into shell.
-
-6. ephemeral/startup/action.yml line 80: `extensionAutoInstall="${EXTENSION_AUTO_INSTALL:-${{ inputs.extension-auto-install }}}"` — inputs interpolated into shell.
-
-7. ephemeral/startup/action.yml line 81: `lifetime="${{ inputs.lifetime }}"` — inputs interpolated into shell.
-
-8. ephemeral/startup/action.yml line ~131 (run-preview-deployment step): `${{ inputs.preview-cmd }}` — the entire shell command is an attacker-controlled input expression; this is arbitrary remote code execution.
-
-9. ephemeral/startup/action.yml (print-logs step): `AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${{ inputs.localstack-api-key }}}}"` and `source ${{ github.action_path }}/../retry-function.sh`.
-
-10. ephemeral/shutdown/action.yml line 35: `AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${{ inputs.localstack-api-key }}}}"` — inputs interpolated into shell.
-
-11. ephemeral/shutdown/action.yml line 38: `source ${{ github.action_path }}/../retry-function.sh` — github context interpolated into shell path.
-
-12. finish/action.yml lines 58–59: `${LS_PREVIEW_URL:-${{ inputs.preview-url }}}` — inputs interpolated directly into shell conditional and echo command.
+Multiple run: blocks directly interpolate ${{ ... }} expressions inside shell command strings, violating sub-rule (a). The most critical instance is in ephemeral/startup/action.yml where `${{ inputs.preview-cmd }}` is used as the entire body of a run: step, allowing an attacker to execute arbitrary shell commands. Other violations include: `echo ${{ github.event.number }}` (prepare/action.yml), `export CI_PROJECT=${{ inputs.ci-project }}` and `eval "${CONFIGURATION} localstack start -d"` where CONFIGURATION holds `${{ inputs.configuration }}` (startup/action.yml — also sub-rule (b): unquoted expansion of untrusted env var passed to eval), `AUTH_HEADER="...${LOCALSTACK_API_KEY:-${{ inputs.localstack-api-key }}}"`, `source ${{ github.action_path }}/../retry-function.sh`, `autoLoadPod="${AUTO_LOAD_POD:-${{ inputs.auto-load-pod }}}"`, `extensionAutoInstall="${EXTENSION_AUTO_INSTALL:-${{ inputs.extension-auto-install }}}"`, `lifetime="${{ inputs.lifetime }}"` (ephemeral/startup/action.yml), and `${LS_PREVIEW_URL:-${{ inputs.preview-url }}}` (finish/action.yml). All of these allow expression values to be interpreted by the shell before quoting.
 
 Locations:
 
 - `prepare/action.yml:16`
+- `startup/action.yml:56`
 - `startup/action.yml:57`
-- `ephemeral/startup/action.yml:57`
-- `ephemeral/startup/action.yml:60`
-- `ephemeral/startup/action.yml:79`
-- `ephemeral/startup/action.yml:80`
-- `ephemeral/startup/action.yml:81`
+- `ephemeral/startup/action.yml:51`
+- `ephemeral/startup/action.yml:54`
+- `ephemeral/startup/action.yml:67`
+- `ephemeral/startup/action.yml:68`
+- `ephemeral/startup/action.yml:69`
 - `ephemeral/startup/action.yml:131`
-- `ephemeral/startup/action.yml:143`
-- `ephemeral/shutdown/action.yml:35`
-- `ephemeral/shutdown/action.yml:38`
-- `finish/action.yml:58`
+- `ephemeral/startup/action.yml:148`
+- `ephemeral/startup/action.yml:151`
+- `ephemeral/shutdown/action.yml:33`
+- `ephemeral/shutdown/action.yml:36`
+- `finish/action.yml:57`
 
 ### github-env-injection (severity: high)
 
-finish/action.yml writes the value of inputs.preview-url directly to $GITHUB_ENV without sanitization (no `printf '%s' ... | tr -d '\n\r'` step). The expression ${{ inputs.preview-url }} is interpolated inline into the shell string and then echoed to $GITHUB_ENV:
-
-  `echo "LS_PREVIEW_URL=${LS_PREVIEW_URL:-${{ inputs.preview-url }}}" >> $GITHUB_ENV`
-
-An attacker-controlled value containing newlines could inject arbitrary environment variable assignments into the runner environment for subsequent steps.
+Unsanitized values are written to $GITHUB_ENV without the required `printf '%s' ... | tr -d '\n\r'` sanitization step. In finish/action.yml, `${{ inputs.preview-url }}` is interpolated directly into the run: block and then written to GITHUB_ENV via `echo "LS_PREVIEW_URL=${LS_PREVIEW_URL:-${{ inputs.preview-url }}}" >> $GITHUB_ENV` — an attacker-controlled input value can inject newlines to set arbitrary environment variables. In ephemeral/startup/action.yml, `endpointUrl` (derived from an external API response whose content is influenced by attacker-controlled inputs like `previewName`) is written to GITHUB_ENV without sanitization via `echo "LS_PREVIEW_URL=$endpointUrl" >> $GITHUB_ENV` and `echo "AWS_ENDPOINT_URL=$endpointUrl" >> $GITHUB_ENV`.
 
 Locations:
 
-- `finish/action.yml:59`
+- `finish/action.yml:58`
+- `ephemeral/startup/action.yml:121`
+- `ephemeral/startup/action.yml:122`
 
 ## Iteration Notes
 
@@ -77,70 +53,57 @@ Locations:
 
 **Notes:**
 
-Fixed all 12 script injection locations and 1 github-env-injection location across 5 files:
+Fixed all script-injection and github-env-injection findings across 5 files:
 
-1. prepare/action.yml: Moved `github.event.number` to `env: PR_NUMBER` and referenced as `"$PR_NUMBER"` in the run block.
+1. prepare/action.yml: Moved `${{ github.event.number }}` to env block as PR_NUMBER.
 
-2. startup/action.yml: Moved `inputs.ci-project` to `env: CI_PROJECT_INPUT` and referenced as `"${CI_PROJECT_INPUT}"` in the run block.
+2. startup/action.yml: Added CI_PROJECT_INPUT to env block; replaced direct `${{ inputs.ci-project }}` interpolation; replaced `eval "${CONFIGURATION} localstack start -d"` with safe xargs-based tokenization using `env "${localstack_env[@]}" localstack start -d`.
 
-3. ephemeral/startup/action.yml (create-instance step): Added env block with `INPUT_LOCALSTACK_API_KEY`, `INPUT_AUTO_LOAD_POD`, `INPUT_EXTENSION_AUTO_INSTALL`, `INPUT_LIFETIME`, and `ACTION_PATH`. Replaced all inline `${{ }}` expressions in the shell script with the corresponding env vars. The `source ${{ github.action_path }}/../retry-function.sh` was replaced with `source "${ACTION_PATH}/../retry-function.sh"`.
+3. ephemeral/startup/action.yml: Added env block with INPUT_LOCALSTACK_API_KEY, INPUT_AUTO_LOAD_POD, INPUT_EXTENSION_AUTO_INSTALL, INPUT_LIFETIME, ACTION_PATH; replaced all direct ${{ }} interpolations in run blocks; fixed `source ${{ github.action_path }}` to use `source "${ACTION_PATH}/../retry-function.sh"`; sanitized endpointUrl before writing to GITHUB_ENV with `printf '%s' "$endpointUrl" | tr -d '\n\r'`; moved preview-cmd to env block and used `eval "$PREVIEW_CMD"`.
 
-4. ephemeral/startup/action.yml (run-preview-deployment step): Moved `inputs.preview-cmd` to `env: PREVIEW_CMD` and used `eval "$PREVIEW_CMD"` instead of directly executing the expression as a shell command.
+4. ephemeral/shutdown/action.yml: Added env block with INPUT_LOCALSTACK_API_KEY and ACTION_PATH; replaced direct ${{ }} interpolations in AUTH_HEADER and source command.
 
-5. ephemeral/startup/action.yml (print-logs step): Added env block with `INPUT_LOCALSTACK_API_KEY` and `ACTION_PATH`, replaced inline expressions in the shell script.
-
-6. ephemeral/shutdown/action.yml (shutdown-ephemeral-instance step): Added env block with `INPUT_LOCALSTACK_API_KEY` and `ACTION_PATH`, replaced inline expressions in the shell script.
-
-7. finish/action.yml (Load the Ephemeral Instance URL step): Moved `inputs.preview-url` to `env: INPUT_PREVIEW_URL`, resolved the value into a shell variable, and sanitized it with `printf '%s' "$resolved" | tr -d '\n\r'` before writing to `$GITHUB_ENV`. This fixes both the script-injection and github-env-injection findings.
+5. finish/action.yml: Added INPUT_PREVIEW_URL to env block; replaced `${LS_PREVIEW_URL:-${{ inputs.preview-url }}}` with env var reference; added `printf '%s' ... | tr -d '\n\r'` sanitization before all writes to GITHUB_ENV.
 
 ### Iteration 2
+
+**Fixes applied:** script-injection
+
+**Notes:**
+
+Fixed two script injection vulnerabilities: (1) In startup/action.yml line 68, added double quotes around ${IMAGE_NAME} in the `docker pull` command to prevent shell metacharacter injection from the user-controlled `inputs.image-tag` value. (2) In ephemeral/startup/action.yml line 163, replaced `eval "$PREVIEW_CMD"` with `sh -c "$PREVIEW_CMD"` to execute the user-provided preview command in an isolated subshell rather than the current shell context, preventing it from modifying the current shell's environment and state. The PREVIEW_CMD variable was already correctly placed in the env block.
+
+### Iteration 1
 
 **Fixes applied:** script-injection, github-env-injection
 
 **Notes:**
 
-Fixed 5 findings across 3 files:
+Fixed 7 security findings across 5 files:
 
-1. startup/action.yml (script-injection): Replaced `eval "${CONFIGURATION} localstack start -d"` with a safe `env` command using xargs to tokenize the CONFIGURATION string into an array of KEY=VALUE pairs, then passing them to `env` as separate arguments. This prevents arbitrary shell command injection via the configuration input.
+1. ephemeral/startup/action.yml - 'Run preview deployment': Replaced `sh -c "$PREVIEW_CMD"` with writing PREVIEW_CMD to a temp file and executing with `bash "$_preview_script"` to prevent shell metacharacter injection.
 
-2. ephemeral/startup/action.yml (script-injection): Replaced `eval "$PREVIEW_CMD"` with `bash -c "$PREVIEW_CMD"` to avoid the extra evaluation pass that eval performs.
+2. ephemeral/startup/action.yml - 'Setup preview name': Added sanitization of previewName with `printf '%s' | tr -d '\n\r'` before writing to $GITHUB_ENV and $GITHUB_OUTPUT.
 
-3. ephemeral/shutdown/action.yml (github-env-injection): Added sanitization of previewName using `printf '%s' "$previewName" | tr -d '\n\r'` before writing to $GITHUB_ENV.
+3. startup/action.yml - 'Start LocalStack': Restructured CONFIGURATION handling to build localstack_env array directly with IMAGE_NAME and DNS_ADDRESS as separate elements, then tokenize user-provided CONFIGURATION separately using xargs with a proper empty-value guard.
 
-4. ephemeral/startup/action.yml (github-env-injection, line 52): Added sanitization of previewName using `printf '%s' "$previewName" | tr -d '\n\r'` before writing to $GITHUB_ENV and $GITHUB_OUTPUT.
+4. cloud-pods/action.yml: Quoted `$NAME` → `"$NAME"` in `localstack pod save` and `localstack pod load --yes` commands.
 
-5. ephemeral/startup/action.yml (github-env-injection, line 143): Added sanitization of endpointUrl using `printf '%s' "$endpointUrl" | tr -d '\n\r'` before writing LS_PREVIEW_URL and AWS_ENDPOINT_URL to $GITHUB_ENV.
+5. local/action.yml: Quoted `${NAME}.zip` → `"${NAME}.zip"` in `localstack state export` and `localstack state import` commands.
 
-### Iteration 3
+6. ephemeral/shutdown/action.yml - 'Load the PR ID': Sanitized pr-id.txt content with `printf '%s' | tr -d '\n\r'` before writing to $GITHUB_OUTPUT.
 
-**Fixes applied:** script-injection
+7. ephemeral/shutdown/action.yml - 'Setup preview name': Added sanitization of previewName before writing to $GITHUB_ENV.
 
-**Notes:**
-
-Fixed four script injection vulnerabilities:
-1. ephemeral/startup/action.yml (line 161): Replaced `bash -c "$PREVIEW_CMD"` with writing PREVIEW_CMD to a temp file and executing it with `bash /tmp/_preview_cmd.sh`. This prevents the shell from re-parsing the env var value as shell code via bash -c's argument parsing.
-2. cloud-pods/action.yml (lines 20, 23): Added double quotes around $NAME in `localstack pod save "$NAME"` and `localstack pod load --yes "$NAME"` to prevent word splitting and glob expansion.
-3. local/action.yml (lines 36, 39): Added double quotes around ${NAME}.zip in `localstack state export "${NAME}.zip"` and `localstack state import "${NAME}.zip"` to prevent word splitting and glob expansion.
-4. startup/action.yml (line 70): Added double quotes around ${IMAGE_NAME} in `docker pull "${IMAGE_NAME}" &` to prevent word splitting and glob expansion.
-
-### Iteration 4
-
-**Fixes applied:** script-injection
-
-**Notes:**
-
-Fixed two unquoted shell variable expansions:
-1. startup/action.yml line 85: Quoted `${LS_WAIT_TIMEOUT:-30}` → `"${LS_WAIT_TIMEOUT:-30}"` to prevent command injection via shell metacharacters in the env var.
-2. ephemeral/startup/action.yml line 126: Quoted `${lifetime}` inside the JSON curl body → `\"${lifetime}\"` to prevent JSON string breakout via a double-quote character in the input value.
+8. finish/action.yml - 'Load the PR ID': Sanitized pr-id.txt content with `printf '%s' | tr -d '\n\r'` before writing to $GITHUB_OUTPUT.
 
 ### Iteration 1
 
-**Fixes applied:** github-env-injection
+**Fixes applied:** publish-gate
 
 **Notes:**
 
-Fixed two instances of unsanitized writes to $GITHUB_OUTPUT:
-1. `ephemeral/shutdown/action.yml` line 22: Replaced `echo "pr_id=$(<pr-id.txt)" >> $GITHUB_OUTPUT` with a two-line form that first sanitizes via `printf '%s' ... | tr -d '\n\r'` into a `safe` variable, then writes `pr_id=$safe` to `"$GITHUB_OUTPUT"`.
-2. `finish/action.yml` line 35: Same fix applied — replaced the direct echo with a sanitized form using `printf '%s' ... | tr -d '\n\r'`.
-Both fixes are consistent with the sanitization pattern already used elsewhere in the codebase.
+Fixed both _actions directory glob searches by replacing them with $GITHUB_ACTION_PATH-based paths:
+1. action.yml:90 - Replaced the multi-line ls/_actions glob with a simple `echo "GH_ACTION_ROOT=$GITHUB_ACTION_PATH" >> $GITHUB_ENV` since action.yml is at the action root.
+2. startup/action.yml:44 - Replaced the multi-line ls/_actions glob with `GH_ACTION_ROOT="$(cd "$GITHUB_ACTION_PATH/.." && pwd)"` since startup/action.yml is one directory level deep, so the action root is one level up from $GITHUB_ACTION_PATH.
 
