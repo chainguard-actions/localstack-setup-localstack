@@ -1,0 +1,42 @@
+name: Test load action
+on:
+  workflow_dispatch:
+jobs:
+  test-load:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install fake localstack CLI
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          cat > "$HOME/.local/bin/localstack" << 'EOF'
+          #!/bin/sh
+          # Fake localstack CLI for testing
+          echo "FAKE_LOCALSTACK_CALLED: $*" >> /tmp/localstack-calls.log
+          echo "fake localstack: $*"
+          # Simulate pod load success
+          if [ "$1" = "pod" ] && [ "$2" = "load" ]; then
+            echo "Cloud Pod '$4' loaded successfully."
+            exit 0
+          fi
+          exit 0
+          EOF
+          chmod +x "$HOME/.local/bin/localstack"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        with:
+          name: my-load-pod
+          action: load
+
+      - name: Assert load was called with correct flags and pod name
+        run: |
+          echo "=== localstack call log ==="
+          cat /tmp/localstack-calls.log || echo "(no log file)"
+          if ! grep -q "pod load --yes my-load-pod" /tmp/localstack-calls.log; then
+            echo "FAIL: expected 'localstack pod load --yes my-load-pod' to be called"
+            exit 1
+          fi
+          echo "PASS: localstack pod load --yes my-load-pod was called"

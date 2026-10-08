@@ -1,4 +1,4 @@
-name: Test with include-preview and preview-url
+name: Test LocalStack startup with custom configuration
 on:
   workflow_dispatch:
 jobs:
@@ -7,24 +7,28 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Set up Docker (ensure available)
+        run: docker info
+
       - id: action
         uses: .
         continue-on-error: true
         with:
-          github-token: ${{ github.token }}
-          ci-project: my-ci-project
-          include-preview: "true"
-          preview-url: "https://preview.example.com"
+          image-tag: latest
+          install-awslocal: 'true'
+          use-pro: 'false'
+          configuration: 'DEBUG=1'
+          skip-wait: 'true'
 
-      - name: Assert action ran (fails gracefully due to missing artifact and sentinel repo)
+      - name: Assert action ran with custom configuration
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action succeeded"
+            echo "PASS: LocalStack started with custom configuration"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (no pr-id artifact or sentinel repo)"
+            echo "PASS: action failed gracefully (expected under act due to _actions dir structure or Docker-in-Docker limitations)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

@@ -53,7 +53,8 @@ runs:
     #   with:
     #     github-token: ${{ inputs.github-token }}
     #     ci-project: ${{ inputs.ci-project }}
-    - run: echo "GH_ACTION_ROOT=$(cd "$GITHUB_ACTION_PATH/.." && pwd)" >> "$GITHUB_ENV"
+    - run: |
+        echo "GH_ACTION_ROOT=./$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH/..")" >> "$GITHUB_ENV"
       shell: bash
     - name: Install tools
       uses: chainguard-actions/jenseng-dynamic-uses@72a5e3b1be8e44fca7784903e1ae14ea25778f99 # v1
@@ -69,20 +70,26 @@ runs:
           if [ "x$LOCALSTACK_AUTH_TOKEN" = "x" -o "x$LOCALSTACK_API_KEY" = "x" ]; then
             echo "WARNING: LocalStack Auth Token not detected, please verify your configuration..."
           fi
-          CONFIGURATION="DNS_ADDRESS=127.0.0.1 ${CONFIGURATION}"
           IMAGE_NAME="${IMAGE_NAME:-localstack/localstack-pro:${IMAGE_TAG}}"
         else
           IMAGE_NAME="${IMAGE_NAME:-localstack/localstack:${IMAGE_TAG}}"
         fi
 
-        CONFIGURATION="IMAGE_NAME=${IMAGE_NAME} ${CONFIGURATION}"
         docker pull "${IMAGE_NAME}" &
-        cfg_args=()
-        if [ -n "$CONFIGURATION" ]; then
-          while IFS= read -r -d '' t; do cfg_args+=("$t"); done \
-            < <(printf '%s' "$CONFIGURATION" | xargs printf '%s\0')
+        if [ -n "$CI_PROJECT" ]; then
+          export CI_PROJECT
         fi
-        env "${cfg_args[@]}" localstack start -d
+
+        # Parse CONFIGURATION into individual NAME=VALUE env vars and pass them
+        # to localstack via `env` to avoid eval-based shell injection.
+        env_args=()
+        env_args+=("IMAGE_NAME=${IMAGE_NAME}")
+        if [ -n "$CONFIGURATION" ]; then
+          while IFS= read -r -d '' token; do
+            env_args+=("$token")
+          done < <(printf '%s' "$CONFIGURATION" | xargs printf '%s\0')
+        fi
+        env "${env_args[@]}" localstack start -d
 
         if [ "$SKIP_WAIT" = false ]; then
           localstack wait -t "${LS_WAIT_TIMEOUT:-30}"  # Let users configure the timeout via env variable

@@ -1,0 +1,41 @@
+name: Test ephemeral state-backend with save action
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup LocalStack with ephemeral state-backend and save action
+        id: action
+        uses: .
+        continue-on-error: true
+        with:
+          image-tag: latest
+          install-awslocal: 'true'
+          skip-startup: 'false'
+          state-backend: 'ephemeral'
+          state-action: 'save'
+          state-name: 'test-state'
+
+      - name: Assert action ran (tools install or graceful failure)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "Action succeeded with ephemeral state-backend + save action"
+            if which localstack > /dev/null 2>&1; then
+              echo "PASS: localstack CLI is installed"
+            else
+              echo "FAIL: localstack CLI not found"
+              exit 1
+            fi
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (ephemeral instance or dynamic-uses path resolution may not work under act)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

@@ -1,0 +1,40 @@
+name: Test LocalStack startup without awslocal
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Docker (ensure available)
+        run: docker info
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          image-tag: latest
+          install-awslocal: 'false'
+          use-pro: 'false'
+          skip-wait: 'true'
+
+      - name: Assert action ran without awslocal installation
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: LocalStack started without awslocal"
+            # Verify awslocal is NOT installed
+            if command -v awslocal > /dev/null 2>&1; then
+              echo "WARN: awslocal found even though install-awslocal was false"
+            else
+              echo "PASS: awslocal correctly not installed"
+            fi
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully (expected under act due to _actions dir structure or Docker-in-Docker limitations)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

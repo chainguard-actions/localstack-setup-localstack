@@ -14,19 +14,25 @@ jobs:
           github-token: ${{ github.token }}
           ci-project: my-test-project
 
-      - name: Assert action ran with ci-project (pr-id.txt created or action failed gracefully on sentinel repo)
+      - name: Assert pr-id.txt was created
+        run: |
+          echo "Checking pr-id.txt exists..."
+          if [ ! -f "./pr-id.txt" ]; then
+            echo "FAIL: pr-id.txt was not created"
+            exit 1
+          fi
+          echo "pr-id.txt contents: $(cat ./pr-id.txt)"
+          echo "PASS: pr-id.txt exists"
+
+      - name: Assert action ran with ci-project input (comment step may fail on sentinel repo)
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
           if [ "$OUTCOME" = "success" ]; then
-            if [ ! -f "./pr-id.txt" ]; then
-              echo "FAIL: pr-id.txt was not created"
-              exit 1
-            fi
-            echo "PASS: action succeeded with ci-project and pr-id.txt exists"
+            echo "PASS: action succeeded with ci-project input"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (expected on sentinel repo without a real PR)"
+            echo "PASS: action failed gracefully (sentinel repo is not resolvable for PR comment)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

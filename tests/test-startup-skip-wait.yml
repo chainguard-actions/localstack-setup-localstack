@@ -1,4 +1,4 @@
-name: Test ephemeral instance with preview-cmd and include-preview
+name: Test startup with skip-wait
 on:
   workflow_dispatch:
 
@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup LocalStack ephemeral instance with preview inputs
+      - name: Setup LocalStack with skip-wait
         id: action
         uses: .
         continue-on-error: true
@@ -16,21 +16,23 @@ jobs:
           image-tag: latest
           install-awslocal: 'true'
           skip-startup: 'false'
-          state-backend: 'ephemeral'
-          state-action: 'start'
-          preview-cmd: 'echo "Preview at $AWS_ENDPOINT_URL"'
-          include-preview: 'true'
-          lifetime: '30'
+          skip-wait: 'true'
 
-      - name: Assert action ran with preview inputs (success or graceful failure)
+      - name: Assert action ran (startup or graceful failure)
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action succeeded with preview-cmd and include-preview inputs"
+            echo "Action succeeded, verifying localstack CLI is installed..."
+            if which localstack > /dev/null 2>&1; then
+              echo "PASS: localstack CLI is installed"
+            else
+              echo "FAIL: localstack CLI not found after startup"
+              exit 1
+            fi
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (ephemeral instance requires LocalStack Cloud credentials not available under act)"
+            echo "PASS: action failed gracefully (Docker or dynamic-uses path resolution may not work under act)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

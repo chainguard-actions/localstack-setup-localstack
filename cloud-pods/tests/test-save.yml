@@ -1,0 +1,42 @@
+name: Test save action
+on:
+  workflow_dispatch:
+jobs:
+  test-save:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install fake localstack CLI
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          cat > "$HOME/.local/bin/localstack" << 'EOF'
+          #!/bin/sh
+          # Fake localstack CLI for testing
+          echo "FAKE_LOCALSTACK_CALLED: $*" >> /tmp/localstack-calls.log
+          echo "fake localstack: $*"
+          # Simulate pod save success
+          if [ "$1" = "pod" ] && [ "$2" = "save" ]; then
+            echo "Cloud Pod '$3' saved successfully."
+            exit 0
+          fi
+          exit 0
+          EOF
+          chmod +x "$HOME/.local/bin/localstack"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        with:
+          name: my-test-pod
+          action: save
+
+      - name: Assert save was called with correct pod name
+        run: |
+          echo "=== localstack call log ==="
+          cat /tmp/localstack-calls.log || echo "(no log file)"
+          if ! grep -q "pod save my-test-pod" /tmp/localstack-calls.log; then
+            echo "FAIL: expected 'localstack pod save my-test-pod' to be called"
+            exit 1
+          fi
+          echo "PASS: localstack pod save my-test-pod was called"

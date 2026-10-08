@@ -16,27 +16,28 @@ Action **localstack--setup-localstack--startup/v0.2.5** was hardened automatical
 
 ### script-injection (severity: high)
 
-Sub-rule (a): `${{ inputs.ci-project }}` is directly interpolated inside a `run:` shell command: `export CI_PROJECT=${{ inputs.ci-project }}`. Before the shell ever sees this line, GitHub Actions substitutes the raw value of `inputs.ci-project` into the script text. An attacker can supply a value containing shell metacharacters (e.g. `; malicious-command`) to execute arbitrary code on the runner.
+Sub-rule (a): The expression `${{ inputs.ci-project }}` is directly interpolated inside a `run:` shell block (line 69: `export CI_PROJECT=${{ inputs.ci-project }}`). The Actions runner substitutes this value into the shell script before execution, allowing an attacker to inject arbitrary shell commands via the `ci-project` input. The value must be passed through an `env:` variable and properly quoted instead.
 
 Locations:
 
-- `action.yml:75`
+- `action.yml:69`
 
 ### script-injection (severity: high)
 
-Sub-rule (b): `eval "${CONFIGURATION} localstack start -d"` passes the `CONFIGURATION` env var — which is set directly from `${{ inputs.configuration }}` — to `eval`. Even though the value is routed through an env var, `eval` re-parses and executes the expanded string as shell code. An attacker can supply shell metacharacters or subshell expressions in `inputs.configuration` to achieve arbitrary command execution. The env var must be double-quoted AND `eval` must not be used with attacker-controlled data.
+Sub-rule (b): `docker pull ${IMAGE_NAME} &` (line 68) uses the shell variable `${IMAGE_NAME}` without double-quoting. `IMAGE_NAME` is derived from the `IMAGE_TAG` env var which is set from `inputs.image-tag` (an attacker-controlled input). An unquoted expansion allows shell metacharacters (`;`, `|`, `&`, `$(...)`, etc.) embedded in the input to be interpreted by the shell. It must be quoted as `"${IMAGE_NAME}"`.
 
 Locations:
 
-- `action.yml:76`
+- `action.yml:68`
 
 ### script-injection (severity: high)
 
-Sub-rule (b): `docker pull ${IMAGE_NAME} &` uses an unquoted shell expansion of `IMAGE_NAME`. `IMAGE_NAME` is derived from `IMAGE_TAG`, which is set from `${{ inputs.image-tag }}` via the `env:` block. An unquoted expansion allows the shell to parse metacharacters (spaces, semicolons, pipes, glob characters, etc.) out of the attacker-controlled value, enabling command injection. The fix is to quote the expansion: `docker pull "${IMAGE_NAME}" &`.
+Sub-rule (b) + eval: `eval "${CONFIGURATION} localstack start -d"` (line 70) passes the `CONFIGURATION` env var — sourced directly from `inputs.configuration` (untrusted, line 80: `CONFIGURATION: ${{ inputs.configuration }}`) — to `eval`. Even though the variable is double-quoted in the eval argument, `eval` re-parses the resulting string as a full shell command, so any shell metacharacters or commands embedded in `inputs.configuration` will be executed as arbitrary code. This is a critical remote code execution vulnerability.
 
 Locations:
 
-- `action.yml:79`
+- `action.yml:70`
+- `action.yml:80`
 
 ### static-inline-injection (severity: high)
 
@@ -54,11 +55,11 @@ Locations:
 
 **Notes:**
 
-Fixed all security findings in hardened/action/action.yml:
-1. Replaced the _actions/* glob search for GH_ACTION_ROOT with a GITHUB_ACTION_PATH-based path: `$(cd "$GITHUB_ACTION_PATH/.." && pwd)` (startup/action.yml is one level deep, so parent is the repo root).
-2. Removed inline `${{ inputs.ci-project }}` from the run: block; moved it to the env: block as `CI_PROJECT: ${{ inputs.ci-project }}`.
-3. Replaced `eval "${CONFIGURATION} localstack start -d"` with `env ${CONFIGURATION} localstack start -d` — the `env` command treats KEY=VALUE tokens as environment variable assignments, not shell code, preventing command injection via the configuration input.
-4. Quoted `${IMAGE_NAME}` in `docker pull "${IMAGE_NAME}" &` to prevent word splitting and glob expansion from an attacker-controlled image tag.
+Fixed all four security findings in hardened/action/action.yml:
+1. Moved CI_PROJECT from inline `${{ inputs.ci-project }}` in run block to the env: block.
+2. Double-quoted `${IMAGE_NAME}` in `docker pull` to prevent word-splitting/glob injection.
+3. Replaced `eval "${CONFIGURATION} localstack start -d"` with a safe `env` invocation: tokenized CONFIGURATION using xargs+while-read-NUL into an array of NAME=VALUE pairs, then called `env "${env_args[@]}" localstack start -d` — eliminating the eval-based RCE vector.
+4. Also fixed GH_ACTION_ROOT to use `$GITHUB_ACTION_PATH` (via realpath --relative-to) instead of globbing `_actions/*`, which would fail under the hardened action's different owner/repo directory name.
 
 ### Iteration 2
 
@@ -66,7 +67,5 @@ Fixed all security findings in hardened/action/action.yml:
 
 **Notes:**
 
-Fixed two script injection vulnerabilities in action.yml's 'Start LocalStack' step:
-1. CONFIGURATION variable (line 67): Replaced unquoted `env ${CONFIGURATION} localstack start -d` with an xargs-based tokenization into a bash array (`cfg_args`), then used `env "${cfg_args[@]}" localstack start -d`. This safely handles space-separated KEY=VALUE pairs while preventing shell metacharacter injection.
-2. LS_WAIT_TIMEOUT variable (line 70): Added double-quotes around `${LS_WAIT_TIMEOUT:-30}` to prevent command injection via the unquoted variable expansion.
+Fixed unquoted shell parameter expansion in action.yml line 62: changed `localstack wait -t ${LS_WAIT_TIMEOUT:-30}` to `localstack wait -t "${LS_WAIT_TIMEOUT:-30}"`. This prevents command injection via the inherited `LS_WAIT_TIMEOUT` environment variable, which could be set by a calling workflow to contain shell metacharacters.
 

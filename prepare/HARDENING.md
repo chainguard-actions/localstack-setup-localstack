@@ -16,11 +16,11 @@ Action **localstack--setup-localstack--prepare/v0.2.5** was hardened automatical
 
 ### script-injection (severity: high)
 
-Sub-rule (a): A ${{ }} expression is interpolated directly inside a `run:` shell command string. The expression `${{ github.event.number }}` is substituted into the shell command before the shell parses it, allowing an attacker who can control `github.event.number` to inject arbitrary shell commands. The offending line is: `run: echo ${{ github.event.number }} > ./pr-id.txt`. Fix by moving the value into an env var and quoting it: `env:\n  PR_NUMBER: ${{ github.event.number }}\nrun: echo "$PR_NUMBER" > ./pr-id.txt`
+Sub-rule (a): A GitHub Actions expression `${{ github.event.number }}` is directly interpolated inside a `run:` shell command string. Before the shell executes the command, GitHub Actions substitutes the expression value into the script text, allowing an attacker who can control the event payload (e.g. via a crafted PR number) to inject arbitrary shell commands. The offending line is: `run: echo ${{ github.event.number }} > ./pr-id.txt`. Fix: move the value into an env var and reference it as a quoted shell variable, e.g. `env: PR_NUMBER: ${{ github.event.number }}` then `run: echo "$PR_NUMBER" > ./pr-id.txt`.
 
 Locations:
 
-- `action.yml:14`
+- `action.yml:17`
 
 ## Iteration Notes
 
@@ -30,5 +30,5 @@ Locations:
 
 **Notes:**
 
-Fixed script-injection in action.yml line 14: moved `${{ github.event.number }}` out of the `run:` shell string into the step's `env:` block as `PR_NUMBER`, and updated the shell command to use the quoted variable `"$PR_NUMBER"` instead of the direct expression interpolation.
+Fixed script injection in action.yml line 17: moved `${{ github.event.number }}` out of the `run:` shell string and into an `env:` block as `PR_NUMBER`. The shell command now uses the quoted variable `"$PR_NUMBER"` instead of the direct expression interpolation.
 

@@ -16,12 +16,15 @@ Action **localstack--setup-localstack--cloud-pods/v0.2.5** was hardened automati
 
 ### script-injection (severity: high)
 
-Rule (b) violation: The env var `NAME` holds the caller-controlled value `${{ inputs.name }}` and is expanded **unquoted** in two shell commands: `localstack pod save $NAME` and `localstack pod load --yes $NAME`. An attacker can supply a pod name containing shell metacharacters (e.g. spaces, semicolons, `$(...)`, backticks) to inject arbitrary commands. Fix: quote every expansion — `localstack pod save "$NAME"` and `localstack pod load --yes "$NAME"`.
+Rule (b) violation: The env var $NAME holds a value sourced from inputs.name (an attacker-controllable input) and is expanded unquoted in two shell commands inside the run: block. Unquoted shell variable expansion allows shell metacharacters (spaces, semicolons, pipes, glob characters, etc.) embedded in the input to be interpreted by the shell, enabling command injection. The offending lines are:
+  `localstack pod save $NAME` (line 20)
+  `localstack pod load --yes $NAME` (line 22)
+Fix: quote the variable in both places — `localstack pod save "$NAME"` and `localstack pod load --yes "$NAME"`.
 
 Locations:
 
+- `action.yml:20`
 - `action.yml:22`
-- `action.yml:26`
 
 ## Iteration Notes
 
@@ -31,5 +34,5 @@ Locations:
 
 **Notes:**
 
-Fixed two unquoted `$NAME` variable expansions in action.yml. Changed `localstack pod save $NAME` to `localstack pod save "$NAME"` and `localstack pod load --yes $NAME` to `localstack pod load --yes "$NAME"`. The NAME env var holds the caller-controlled `${{ inputs.name }}` value, and quoting it prevents shell metacharacters from being interpreted as shell commands.
+Fixed two unquoted variable expansions in action.yml: `localstack pod save $NAME` → `localstack pod save "$NAME"` and `localstack pod load --yes $NAME` → `localstack pod load --yes "$NAME"`. The `inputs.name` value was already correctly placed in an env var (`NAME`), but the variable was expanded unquoted in the shell commands, allowing shell metacharacters to be interpreted. Quoting both expansions eliminates the injection risk.
 

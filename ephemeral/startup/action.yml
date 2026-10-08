@@ -49,7 +49,6 @@ runs:
       id: preview-name
       run: |
         prId=$(<pr-id.txt)
-        prId=$(printf '%s' "$prId" | tr -d '\n\r')
         repoName=$GITHUB_REPOSITORY
         repoNameCleaned=$(echo -n "$repoName" | tr -c '[:alnum:]' '-')
         previewName=preview-$repoNameCleaned-$prId
@@ -65,13 +64,12 @@ runs:
         INPUT_AUTO_LOAD_POD: ${{ inputs.auto-load-pod }}
         INPUT_EXTENSION_AUTO_INSTALL: ${{ inputs.extension-auto-install }}
         INPUT_LIFETIME: ${{ inputs.lifetime }}
-        ACTION_PATH: ${{ github.action_path }}
       run: |
         AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${INPUT_LOCALSTACK_API_KEY}}}"
         CONTENT_TYPE_HEADER="content-type: application/json"
         API_URL_BASE="https://api.localstack.cloud/v1/compute/instances"
 
-        source "${ACTION_PATH}/../retry-function.sh"
+        source "$GITHUB_ACTION_PATH/../retry-function.sh"
 
         fetch_instances() {
             local list_response
@@ -142,14 +140,14 @@ runs:
           exit 1
         fi
         
-        endpointUrl=$(echo "$response" | jq -r .endpoint_url)
+        raw_endpoint=$(echo "$response" | jq -r .endpoint_url)
+        endpointUrl=$(printf '%s' "$raw_endpoint" | tr -d '\n\r')
 
         echo "Created preview environment with endpoint URL: $endpointUrl"
 
         echo $endpointUrl > ./ls-preview-url.txt
-        safe_endpoint=$(printf '%s' "$endpointUrl" | tr -d '\n\r')
-        echo "LS_PREVIEW_URL=$safe_endpoint" >> $GITHUB_ENV
-        echo "AWS_ENDPOINT_URL=$safe_endpoint" >> $GITHUB_ENV
+        echo "LS_PREVIEW_URL=$endpointUrl" >> "$GITHUB_ENV"
+        echo "AWS_ENDPOINT_URL=$endpointUrl" >> "$GITHUB_ENV"
 
     - name: Upload preview instance URL
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -174,13 +172,12 @@ runs:
       env:
         previewName: ${{ steps.preview-name.outputs.name }}
         INPUT_LOCALSTACK_API_KEY: ${{ inputs.localstack-api-key }}
-        ACTION_PATH: ${{ github.action_path }}
       run: |
         AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${INPUT_LOCALSTACK_API_KEY}}}"
         CONTENT_TYPE_HEADER="content-type: application/json"
         API_URL_BASE="https://api.localstack.cloud/v1/compute/instances"
 
-        source "${ACTION_PATH}/../retry-function.sh"
+        source "$GITHUB_ACTION_PATH/../retry-function.sh"
         fetch_logs() {
             local log_response
             log_response=$(curl --fail-with-body -s -X GET \

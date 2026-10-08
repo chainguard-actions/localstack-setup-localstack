@@ -1,4 +1,4 @@
-name: Test skip-startup without awslocal
+name: Test skip-startup installs CLI only
 on:
   workflow_dispatch:
 
@@ -8,13 +8,13 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup LocalStack with skip-startup and no awslocal
+      - name: Setup LocalStack with skip-startup
         id: action
         uses: .
         continue-on-error: true
         with:
           image-tag: latest
-          install-awslocal: 'false'
+          install-awslocal: 'true'
           skip-startup: 'true'
 
       - name: Assert action ran (CLI install or graceful failure)
@@ -23,17 +23,12 @@ jobs:
         run: |
           echo "outcome: $OUTCOME"
           if [ "$OUTCOME" = "success" ]; then
-            echo "Action succeeded, verifying localstack CLI is installed but awslocal is not..."
+            echo "Action succeeded, verifying localstack CLI is installed..."
             if which localstack > /dev/null 2>&1; then
               echo "PASS: localstack CLI is installed"
             else
               echo "FAIL: localstack CLI not found after skip-startup=true"
               exit 1
-            fi
-            if which awslocal > /dev/null 2>&1; then
-              echo "WARN: awslocal is installed even though install-awslocal=false (may have been pre-installed)"
-            else
-              echo "PASS: awslocal CLI is not installed (as expected)"
             fi
           elif [ "$OUTCOME" = "failure" ]; then
             echo "PASS: action failed gracefully (dynamic-uses path resolution may not work under act)"

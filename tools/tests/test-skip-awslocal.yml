@@ -1,0 +1,28 @@
+name: Test skip awslocal installation
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          install-awslocal: 'false'
+      - name: Assert localstack is installed
+        run: |
+          echo "Checking localstack installation..."
+          if ! which localstack > /dev/null 2>&1; then
+            echo "FAIL: localstack CLI not found in PATH"
+            exit 1
+          fi
+          echo "PASS: localstack is installed at $(which localstack)"
+      - name: Assert awslocal is NOT installed
+        run: |
+          echo "Checking that awslocal is NOT installed..."
+          if which awslocal > /dev/null 2>&1; then
+            echo "FAIL: awslocal CLI was found but should not have been installed"
+            exit 1
+          fi
+          echo "PASS: awslocal is correctly not installed"

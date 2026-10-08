@@ -1,0 +1,49 @@
+name: Test invalid action input
+on:
+  workflow_dispatch:
+jobs:
+  test-invalid-action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install fake localstack CLI
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          cat > "$HOME/.local/bin/localstack" << 'EOF'
+          #!/bin/sh
+          # Fake localstack CLI for testing
+          echo "FAKE_LOCALSTACK_CALLED: $*" >> /tmp/localstack-calls.log
+          echo "fake localstack: $*"
+          exit 0
+          EOF
+          chmod +x "$HOME/.local/bin/localstack"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - id: action
+        uses: .
+        with:
+          name: my-test-pod
+          action: invalid-action
+        continue-on-error: true
+
+      - name: Assert action failed for invalid input
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" != "failure" ]; then
+            echo "FAIL: expected action to fail with invalid action input, but got outcome '$OUTCOME'"
+            exit 1
+          fi
+          echo "PASS: action correctly failed for invalid action input"
+
+      - name: Assert localstack was NOT called for invalid action
+        run: |
+          echo "=== localstack call log ==="
+          cat /tmp/localstack-calls.log 2>/dev/null || echo "(no log file — expected)"
+          if grep -q "pod" /tmp/localstack-calls.log 2>/dev/null; then
+            echo "FAIL: localstack pod command should not have been called for invalid action"
+            exit 1
+          fi
+          echo "PASS: localstack pod was not called"

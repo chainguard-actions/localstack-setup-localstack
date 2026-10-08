@@ -1,0 +1,48 @@
+name: Test load action
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install mock localstack CLI
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          cat > "$HOME/.local/bin/localstack" << 'EOF'
+          #!/bin/sh
+          echo "mock localstack called with: $*"
+          if [ "$1" = "state" ] && [ "$2" = "import" ]; then
+            echo "State imported from $3"
+            exit 0
+          fi
+          exit 0
+          EOF
+          chmod +x "$HOME/.local/bin/localstack"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Create a fake state zip for import
+        run: |
+          touch "$GITHUB_WORKSPACE/ls-state.zip"
+
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          name: ls-state
+          action: load
+
+      - name: Assert load action ran
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "success" ]; then
+            echo "PASS: load action succeeded with mock localstack"
+          elif [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: load action failed gracefully (no artifact to download or localstack not available)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi

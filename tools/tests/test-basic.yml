@@ -1,0 +1,28 @@
+name: Test basic usage (install localstack and awslocal)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          install-awslocal: 'true'
+      - name: Assert localstack is installed
+        run: |
+          echo "Checking localstack installation..."
+          if ! which localstack > /dev/null 2>&1; then
+            echo "FAIL: localstack CLI not found in PATH"
+            exit 1
+          fi
+          echo "PASS: localstack is installed at $(which localstack)"
+      - name: Assert awslocal is installed
+        run: |
+          echo "Checking awslocal installation..."
+          if ! which awslocal > /dev/null 2>&1; then
+            echo "FAIL: awslocal CLI not found in PATH"
+            exit 1
+          fi
+          echo "PASS: awslocal is installed at $(which awslocal)"

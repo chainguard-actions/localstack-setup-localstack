@@ -16,12 +16,12 @@ Action **localstack--setup-localstack--local/v0.2.5** was hardened automatically
 
 ### script-injection (severity: high)
 
-Sub-rule (b): Unquoted shell variable expansion of untrusted data. In the `run:` block, `NAME` is sourced from `inputs.name` (attacker-controlled, set via `env: NAME: "${{ inputs.name }}"`), but it is expanded unquoted in two shell commands: `localstack state export ${NAME}.zip` and `localstack state import ${NAME}.zip`. An attacker-controlled value containing shell metacharacters (e.g. semicolons, pipes, backticks) could result in arbitrary command execution. The fix is to quote the expansions: `"${NAME}.zip"`.
+Sub-rule (b) violation: The `run:` block expands `${NAME}` without double-quoting in two shell commands (`localstack state export ${NAME}.zip` and `localstack state import ${NAME}.zip`). The env var `NAME` is sourced directly from `${{ inputs.name }}` (an untrusted caller-controlled input). An unquoted expansion allows the shell to parse metacharacters (spaces, globs, semicolons, etc.) out of the value, enabling command injection. Fix: quote the expansion as `"${NAME}.zip"`.
 
 Locations:
 
-- `action.yml:44`
-- `action.yml:47`
+- `action.yml:40`
+- `action.yml:43`
 
 ## Iteration Notes
 
@@ -31,5 +31,5 @@ Locations:
 
 **Notes:**
 
-Fixed two instances of unquoted shell variable expansion in action.yml. On lines 44 and 47, `${NAME}.zip` was changed to `"${NAME}.zip"` to prevent word splitting and glob expansion of the attacker-controlled `inputs.name` value. The variable was already safely passed via the `env:` block, but the unquoted expansion in the shell commands still posed an injection risk.
+Fixed unquoted shell variable expansions in action.yml at lines 40 and 43. Changed `localstack state export ${NAME}.zip` and `localstack state import ${NAME}.zip` to use double-quoted expansions: `"${NAME}.zip"`. This prevents word splitting and glob expansion on the caller-controlled `NAME` environment variable, which is sourced from `${{ inputs.name }}`.
 
