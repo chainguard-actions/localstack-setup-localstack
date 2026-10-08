@@ -29,7 +29,7 @@ jobs:
         run: |
           echo "outcome: $OUTCOME"
           if [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action succeeded"
+            echo "PASS: action succeeded with ci-project input"
           elif [ "$OUTCOME" = "failure" ]; then
             echo "PASS: action failed gracefully (sentinel repo is not resolvable)"
           else

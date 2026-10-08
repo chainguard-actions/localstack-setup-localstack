@@ -16,11 +16,11 @@ Action **localstack--setup-localstack--prepare/v0.3.1** was hardened automatical
 
 ### script-injection (severity: high)
 
-Sub-rule (a): A GitHub Actions expression is directly interpolated inside a `run:` shell command string. On line 16, `run: echo ${{ github.event.number }} > ./pr-id.txt` embeds `${{ github.event.number }}` directly in the shell command. The value is substituted into the shell command before the shell parses it, allowing an attacker who can control the event number (e.g. via a crafted event payload) to inject arbitrary shell commands. Fix: move the value into an `env:` variable and reference it as a quoted shell variable, e.g. `env: { PR_NUMBER: "${{ github.event.number }}" }` and `run: echo "$PR_NUMBER" > ./pr-id.txt`.
+Sub-rule (a): A GitHub Actions expression is directly interpolated inside a `run:` shell command. The step 'Save PR number' contains `echo ${{ github.event.number }} > ./pr-id.txt`. The value `github.event.number` is substituted into the shell command string before the shell executes it, allowing an attacker to craft a pull request number (or other event payload field) that injects arbitrary shell commands. The value should be passed via an `env:` variable and then referenced as a quoted shell variable (e.g., `env: PR_NUMBER: ${{ github.event.number }}` and `run: echo "$PR_NUMBER" > ./pr-id.txt`)
 
 Locations:
 
-- `action.yml:16`
+- `action.yml:17`
 
 ## Iteration Notes
 
@@ -30,5 +30,5 @@ Locations:
 
 **Notes:**
 
-Fixed script injection on line 16 of action.yml: moved `${{ github.event.number }}` out of the `run:` shell command and into an `env:` block as `PR_NUMBER`. The shell command now uses `echo "$PR_NUMBER" > ./pr-id.txt` instead of directly interpolating the GitHub expression.
+Fixed script injection in the 'Save PR number' step of action.yml. Moved `${{ github.event.number }}` out of the `run:` shell string into an `env:` block as `PR_NUMBER: ${{ github.event.number }}`, and updated the shell command to use the quoted variable `echo "$PR_NUMBER" > ./pr-id.txt`.
 

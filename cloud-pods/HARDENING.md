@@ -16,12 +16,15 @@ Action **localstack--setup-localstack--cloud-pods/v0.3.1** was hardened automati
 
 ### script-injection (severity: high)
 
-Rule (b) violation: The shell variable $NAME, which holds the value of inputs.name (an attacker-controlled input), is expanded unquoted in two run: commands: `localstack pod save $NAME` and `localstack pod load --yes $NAME`. An unquoted expansion allows the shell to parse metacharacters (semicolons, pipes, backticks, spaces, glob characters, etc.) from the value, enabling command injection. The variable must be double-quoted: `localstack pod save "$NAME"` and `localstack pod load --yes "$NAME"`.
+Rule (b) violation: The env var `$NAME` (sourced from `inputs.name`, a workflow-controllable value) is expanded unquoted in two shell commands inside the `run:` block. Unquoted shell variable expansion allows an attacker to inject shell metacharacters (`;`, `|`, `&`, `$(...)`, etc.) via the `name` input. Offending lines:
+  - `localstack pod save $NAME` (line 21) — should be `localstack pod save "$NAME"`
+  - `localstack pod load --yes $NAME` (line 24) — should be `localstack pod load --yes "$NAME"`
+Note: `$ACTION` is only used in a quoted `[ "$ACTION" = ... ]` test, so it is safe.
 
 Locations:
 
-- `action.yml:20`
-- `action.yml:23`
+- `action.yml:21`
+- `action.yml:24`
 
 ## Iteration Notes
 
@@ -31,5 +34,5 @@ Locations:
 
 **Notes:**
 
-Fixed two unquoted $NAME variable expansions in action.yml. Changed `localstack pod save $NAME` to `localstack pod save "$NAME"` and `localstack pod load --yes $NAME` to `localstack pod load --yes "$NAME"`. The inputs.name value was already correctly placed in the env: block, so only the quoting of the shell variable needed to be fixed to prevent command injection via shell metacharacters.
+Fixed two instances of unquoted `$NAME` variable expansion in action.yml. Changed `localstack pod save $NAME` to `localstack pod save "$NAME"` (line 21) and `localstack pod load --yes $NAME` to `localstack pod load --yes "$NAME"` (line 24). The `$NAME` variable is sourced from `inputs.name` and was vulnerable to shell metacharacter injection when left unquoted. The `$ACTION` variable was already safely used only in quoted test expressions and required no changes.
 

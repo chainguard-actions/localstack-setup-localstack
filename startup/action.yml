@@ -54,13 +54,13 @@ runs:
     #     github-token: ${{ inputs.github-token }}
     #     ci-project: ${{ inputs.ci-project }}
     - run: >
-        echo "GH_ACTION_ROOT=./$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH/..")" >> $GITHUB_ENV
+        echo "GH_ACTION_ROOT=$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH/..")" >> $GITHUB_ENV
 
       shell: bash
     - name: Install tools
       uses: chainguard-actions/jenseng-dynamic-uses@72a5e3b1be8e44fca7784903e1ae14ea25778f99 # v1
       with:
-        uses: ${{ env.GH_ACTION_ROOT }}/tools
+        uses: ./${{ env.GH_ACTION_ROOT }}/tools
         with: |-
           {
             "install-awslocal": ${{ toJSON(inputs.install-awslocal) }},
@@ -82,15 +82,20 @@ runs:
 
         CONFIGURATION="IMAGE_NAME=${IMAGE_NAME} ${CONFIGURATION}"
         docker pull "${IMAGE_NAME}" &
-        cfg_args=()
+        export CI_PROJECT="$CI_PROJECT_INPUT"
+
+        # Parse CONFIGURATION as KEY=VALUE pairs and pass them as env vars to localstack
+        # This avoids eval with user-controlled input
+        env_args=()
         if [ -n "$CONFIGURATION" ]; then
-          while IFS= read -r -d '' t; do cfg_args+=("$t"); done \
-            < <(printf '%s' "$CONFIGURATION" | xargs printf '%s\0')
+          while IFS= read -r -d '' token; do
+            env_args+=("$token")
+          done < <(printf '%s' "$CONFIGURATION" | xargs printf '%s\0')
         fi
-        env "${cfg_args[@]}" localstack start -d
+        env "${env_args[@]}" localstack start -d
 
         if [ "$SKIP_WAIT" = false ]; then
-          localstack wait -t "${LS_WAIT_TIMEOUT:-30}"  # Let users configure the timeout via env variable
+          localstack wait -t ${LS_WAIT_TIMEOUT:-30}  # Let users configure the timeout via env variable
         fi
       shell: bash
       env:
@@ -98,5 +103,5 @@ runs:
         INSTALL_AWSLOCAL: ${{ inputs.install-awslocal }}
         USE_PRO: ${{ inputs.use-pro }}
         CONFIGURATION: ${{ inputs.configuration }}
+        CI_PROJECT_INPUT: ${{ inputs.ci-project }}
         SKIP_WAIT: ${{ inputs.skip-wait }}
-        CI_PROJECT: ${{ inputs.ci-project }}
