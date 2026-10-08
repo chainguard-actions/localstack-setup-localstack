@@ -36,7 +36,7 @@ runs:
     # Try to get pr artifact from current workflow
     - name: Download current PR artifact
       id: get-pr-artifact
-      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+      uses: chainguard-actions/actions-download-artifact@cc673c30092424d3cb15266c177e77aef02c577e # v7
       continue-on-error: true
       with:
         name: pr-id
@@ -56,7 +56,7 @@ runs:
     - name: Download preview instance URL
       id: get-preview-instance-url-artifact
       if: inputs.include-preview
-      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+      uses: chainguard-actions/actions-download-artifact@cc673c30092424d3cb15266c177e77aef02c577e # v7
       with:
         name: preview-instance-url
     # If the above fails, try to get the latest pr artifact from the PR related workflows
