@@ -30,9 +30,7 @@ runs:
       shell: bash
       run: |
         prId=$(<pr-id.txt)
-        prId=$(printf '%s' "$prId" | tr -d '\n\r')
         repoName=$GITHUB_REPOSITORY
-        repoName=$(printf '%s' "$repoName" | tr -d '\n\r')
         repoNameCleaned=$(echo -n "$repoName" | tr -c '[:alnum:]' '-')
         previewName=preview-$repoNameCleaned-$prId
         safe_previewName=$(printf '%s' "$previewName" | tr -d '\n\r')

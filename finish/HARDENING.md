@@ -10,16 +10,13 @@
 
 **Harden Agent Version:** `2`
 
-Action **localstack--setup-localstack--finish/v0.3.1** was hardened automatically. 4 finding(s) were identified and resolved across 2 iteration(s).
+Action **localstack--setup-localstack--finish/v0.3.1** was hardened automatically. 4 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-Sub-rule (a): The 'Load the Ephemeral Instance URL' step directly interpolates `${{ inputs.preview-url }}` inside a `run:` shell command string. The expression is substituted by the Actions runner before the shell parses the command, allowing an attacker-controlled value to inject arbitrary shell commands. Offending lines:
-  Line 65: `if [[ -n "${LS_PREVIEW_URL:-${{ inputs.preview-url }}}" ]]; then`
-  Line 66: `echo "LS_PREVIEW_URL=${LS_PREVIEW_URL:-${{ inputs.preview-url }}}" >> $GITHUB_ENV`
-Fix: move `inputs.preview-url` into an `env:` variable and reference it as a quoted shell variable (e.g. `"$PREVIEW_URL"`).
+Sub-rule (a): The 'Load the Ephemeral Instance URL' step directly interpolates `${{ inputs.preview-url }}` inside a `run:` shell command string. This occurs twice: once in the `if` condition (`${LS_PREVIEW_URL:-${{ inputs.preview-url }}}`) and once in the `echo` command. An attacker controlling the `preview-url` input can inject arbitrary shell metacharacters (`;`, `|`, `$(...)`, etc.) that are evaluated by the shell before any quoting takes effect. The value must be passed via an `env:` block and then double-quoted in the shell script instead.
 
 Locations:
 
@@ -28,11 +25,7 @@ Locations:
 
 ### github-env-injection (severity: high)
 
-The 'Load the Ephemeral Instance URL' step writes `${{ inputs.preview-url }}` — an untrusted caller-controlled input — directly to `$GITHUB_ENV` without the required sanitization step (`printf '%s' "$VAR" | tr -d '\n\r'`). A newline character in the input value can inject arbitrary environment variable definitions into subsequent steps.
-  Line 66: `echo "LS_PREVIEW_URL=${LS_PREVIEW_URL:-${{ inputs.preview-url }}}" >> $GITHUB_ENV`
-Fix: sanitize the value before writing, e.g.:
-  `safe=$(printf '%s' "$PREVIEW_URL" | tr -d '\n\r')`
-  `echo "LS_PREVIEW_URL=$safe" >> "$GITHUB_ENV"`
+The 'Load the Ephemeral Instance URL' step writes the attacker-controlled value `${{ inputs.preview-url }}` directly to `$GITHUB_ENV` (via `echo "LS_PREVIEW_URL=${LS_PREVIEW_URL:-${{ inputs.preview-url }}}" >> $GITHUB_ENV`) without the required sanitization step (`printf '%s' ... | tr -d '\n\r'`). A newline character in `inputs.preview-url` can inject additional key=value pairs into the GitHub environment, allowing an attacker to override arbitrary environment variables for subsequent steps.
 
 Locations:
 
@@ -62,15 +55,5 @@ Locations:
 
 **Notes:**
 
-Fixed the 'Load the Ephemeral Instance URL' step in action.yml: (1) moved `inputs.preview-url` out of the run: block into an `env:` map as `PREVIEW_URL: ${{ inputs.preview-url }}`, eliminating shell injection; (2) added sanitization via `printf '%s' "$raw" | tr -d '\n\r'` before writing to $GITHUB_ENV, preventing newline injection; (3) all shell references now use plain `$PREVIEW_URL` / `$raw` / `$safe` variables instead of inline ${{ }} expressions.
-
-### Iteration 2
-
-**Fixes applied:** github-env-injection, github-env-injection
-
-**Notes:**
-
-Fixed two github-env-injection vulnerabilities in action.yml:
-1. 'Load the PR ID' step: Added sanitization for pr-id.txt content before writing to $GITHUB_OUTPUT. Now reads into 'raw', sanitizes with 'printf "%s" "$raw" | tr -d "\n\r"', then writes the safe value.
-2. 'Load the Ephemeral Instance URL' step: Added sanitization in the elif branch for ls-preview-url.txt content before writing to $GITHUB_ENV. Now follows the same pattern as the if branch above it — reads into 'raw', sanitizes with printf/tr, then writes the safe value.
+Fixed the 'Load the Ephemeral Instance URL' step in hardened/action/action.yml. Moved `${{ inputs.preview-url }}` from the run: block into an env: block as INPUT_PREVIEW_URL. Updated the shell script to use $INPUT_PREVIEW_URL instead of the inline expression. Added sanitization (printf '%s' ... | tr -d '\n\r') before writing any value to $GITHUB_ENV to prevent newline-based environment injection. The sanitization is done in two steps (capture raw value, then sanitize) to avoid swallowing errors under errexit.
 

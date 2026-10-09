@@ -52,10 +52,7 @@ runs:
     - name: Load the PR ID
       id: pr
       shell: bash
-      run: |
-        raw="$(<pr-id.txt)"
-        safe="$(printf '%s' "$raw" | tr -d '\n\r')"
-        echo "pr_id=$safe" >> "$GITHUB_OUTPUT"
+      run: echo "pr_id=$(<pr-id.txt)" >> $GITHUB_OUTPUT
     - name: Download preview instance URL
       id: get-preview-instance-url-artifact
       if: inputs.include-preview
@@ -75,11 +72,11 @@ runs:
       shell: bash
       if: inputs.include-preview
       env:
-        PREVIEW_URL: ${{ inputs.preview-url }}
+        INPUT_PREVIEW_URL: ${{ inputs.preview-url }}
       run: |
-        if [[ -n "${LS_PREVIEW_URL:-$PREVIEW_URL}" ]]; then
-          raw="${LS_PREVIEW_URL:-$PREVIEW_URL}"
-          safe="$(printf '%s' "$raw" | tr -d '\n\r')"
+        _resolved="${LS_PREVIEW_URL:-$INPUT_PREVIEW_URL}"
+        if [[ -n "$_resolved" ]]; then
+          safe="$(printf '%s' "$_resolved" | tr -d '\n\r')"
           echo "LS_PREVIEW_URL=$safe" >> "$GITHUB_ENV"
         elif [[ -e ls-preview-url.txt ]]; then
           raw="$(<ls-preview-url.txt)"

@@ -10,41 +10,33 @@
 
 **Harden Agent Version:** `2`
 
-Action **localstack--setup-localstack--startup/v0.3.1** was hardened automatically. 5 finding(s) were identified and resolved across 1 iteration(s).
+Action **localstack--setup-localstack--startup/v0.3.1** was hardened automatically. 4 finding(s) were identified and resolved across 2 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-Sub-rule (a): The expression `${{ inputs.ci-project }}` is directly interpolated inside a `run:` shell command string at line 71: `export CI_PROJECT=${{ inputs.ci-project }}`. An attacker can supply a value containing shell metacharacters (e.g. `; malicious-command`) via the `ci-project` input to achieve arbitrary command execution.
+Rule (a): Direct expression interpolation in a run: block. Line 77 contains `export CI_PROJECT=${{ inputs.ci-project }}` — the `inputs.ci-project` expression is interpolated directly into the shell command string before the shell ever sees it. An attacker who controls this input can inject arbitrary shell commands (e.g., by supplying a value like `; malicious-command`). This must be moved to an `env:` block and the variable must be double-quoted in the script.
 
 Locations:
 
-- `action.yml:71`
+- `action.yml:77`
 
 ### script-injection (severity: high)
 
-Sub-rule (b): The shell variable `${IMAGE_NAME}` (derived from `${IMAGE_TAG}`, which is sourced from `inputs.image-tag` via the env block) is expanded unquoted in `docker pull ${IMAGE_NAME} &` at line 70. An attacker-controlled image tag containing shell metacharacters can break out of the intended command.
+Rule (b): Unquoted shell variable expansion of untrusted data. Line 76 contains `docker pull ${IMAGE_NAME} &` where `IMAGE_NAME` is derived from `$IMAGE_TAG` (sourced from `inputs.image-tag` via the `env:` block). The variable is used without double-quotes, allowing shell metacharacters in the input to be interpreted by the shell. It should be `docker pull "${IMAGE_NAME}" &`.
 
 Locations:
 
-- `action.yml:70`
+- `action.yml:76`
 
 ### script-injection (severity: high)
 
-Sub-rule (b): The shell variable `${CONFIGURATION}` (sourced from `inputs.configuration` via the env block) is passed unquoted into `eval "${CONFIGURATION} localstack start -d"` at line 72. Even though it is inside double-quotes, `eval` re-parses the resulting string, so any shell metacharacters or commands embedded in `inputs.configuration` are executed. This is a critical command-injection vector.
+Rule (b) + eval: Line 78 contains `eval "${CONFIGURATION} localstack start -d"` where `CONFIGURATION` is sourced from `inputs.configuration` via the `env:` block. Although the variable is double-quoted in the shell, `eval` re-parses the resulting string as a shell command, so any shell metacharacters or command sequences embedded in `inputs.configuration` will be executed. This is a critical arbitrary command execution vulnerability. The `eval` pattern should be replaced with a safe alternative that does not re-parse user-controlled content as shell code.
 
 Locations:
 
-- `action.yml:72`
-
-### github-env-injection (severity: high)
-
-The `CONFIGURATION` env var (set from `${{ inputs.configuration }}`) is passed into `eval "${CONFIGURATION} localstack start -d"` without sanitization. An attacker can embed newline characters in `inputs.configuration` to inject arbitrary `KEY=VALUE` pairs into `$GITHUB_ENV`, `$GITHUB_PATH`, or `$GITHUB_OUTPUT` via the eval'd subcommands, bypassing environment file protections. No `printf '%s' ... | tr -d '\n\r'` sanitization is applied before use.
-
-Locations:
-
-- `action.yml:72`
+- `action.yml:78`
 
 ### static-inline-injection (severity: high)
 
@@ -58,13 +50,21 @@ Locations:
 
 ### Iteration 1
 
-**Fixes applied:** script-injection, github-env-injection, static-inline-injection
+**Fixes applied:** script-injection, static-inline-injection
 
 **Notes:**
 
-Fixed all five findings in action.yml:
-1. Moved `inputs.ci-project` from inline `${{ inputs.ci-project }}` in run: block to env: block as `CI_PROJECT_INPUT`, referenced safely as `"$CI_PROJECT_INPUT"` in shell.
-2. Quoted `${IMAGE_NAME}` → `"${IMAGE_NAME}"` in `docker pull` command.
-3. Replaced `eval "${CONFIGURATION} localstack start -d"` with a safe alternative: tokenize CONFIGURATION using xargs into a bash array, then pass via `env "${env_args[@]}" localstack start -d` — eliminates eval entirely and prevents shell metacharacter injection and newline-based github-env-injection.
-4. Also fixed the _actions/* glob (which would fail under the hardened repo name) to use `realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH/.."` and added `./` prefix to the dynamic-uses `uses:` path.
+Fixed all four findings in hardened/action/action.yml:
+1. Replaced unsafe _actions glob search (ls -d ... | grep -i localstack) for GH_ACTION_ROOT with $GITHUB_ACTION_PATH-based computation: `realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH/.."` (one level up since startup/action.yml is one directory deep from the repo root).
+2. Quoted `${IMAGE_NAME}` in `docker pull` command (was unquoted, allowing shell metacharacter interpretation).
+3. Moved `inputs.ci-project` out of the run block: added `CI_PROJECT_INPUT: ${{ inputs.ci-project }}` to the step's env block and replaced `export CI_PROJECT=${{ inputs.ci-project }}` with `export CI_PROJECT="$CI_PROJECT_INPUT"` in the script.
+4. Replaced `eval "${CONFIGURATION} localstack start -d"` with safe xargs-based tokenization: the CONFIGURATION string is tokenized into a bash array using `xargs printf '%s\0'` and a null-delimited read loop, then passed to `env "${cfg_args[@]}" localstack start -d` — this passes KEY=VALUE pairs as environment variables without re-parsing user-controlled content as shell code.
+
+### Iteration 2
+
+**Fixes applied:** script-injection
+
+**Notes:**
+
+Fixed unquoted shell expansion in action.yml line 80: changed `localstack wait -t ${LS_WAIT_TIMEOUT:-30}` to `localstack wait -t "${LS_WAIT_TIMEOUT:-30}"`. This prevents shell injection via the workflow-controlled `LS_WAIT_TIMEOUT` environment variable.
 

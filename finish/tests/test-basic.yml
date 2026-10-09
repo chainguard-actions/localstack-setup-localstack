@@ -1,4 +1,4 @@
-name: Test basic usage (ci-project and github-token)
+name: Test basic usage with ci-project
 on:
   workflow_dispatch:
 jobs:
@@ -7,22 +7,21 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      # Create a fake pr-id.txt artifact so the "Load the PR ID" step can read it
-      # The action tries to download it via actions/download-artifact first (continue-on-error),
-      # then falls back to dawidd6/action-download-artifact. Both will fail under the harness,
-      # but we pre-create the file so the "Load the PR ID" step can still run.
-      - name: Pre-create pr-id.txt for the Load step
+      # Create a fake pr-id artifact file so the action can load it
+      - name: Create fake pr-id artifact
         run: |
-          echo "42" > "$GITHUB_WORKSPACE/pr-id.txt"
+          mkdir -p /tmp/pr-artifact
+          echo "1" > /tmp/pr-artifact/pr-id.txt
+          cp /tmp/pr-artifact/pr-id.txt "$GITHUB_WORKSPACE/pr-id.txt"
 
       - id: action
         uses: .
         continue-on-error: true
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          ci-project: my-ci-project
+          github-token: ${{ github.token }}
+          ci-project: test-ci-project
 
-      - name: Assert action ran (failed gracefully on sentinel repo or succeeded)
+      - name: Assert action ran (succeeded or failed gracefully on sentinel repo)
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
@@ -30,7 +29,7 @@ jobs:
           if [ "$OUTCOME" = "success" ]; then
             echo "PASS: action succeeded"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (expected with sentinel repo)"
+            echo "PASS: action failed gracefully (expected with sentinel repo / missing artifacts)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1

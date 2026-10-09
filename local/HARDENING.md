@@ -10,25 +10,17 @@
 
 **Harden Agent Version:** `2`
 
-Action **localstack--setup-localstack--local/v0.3.1** was hardened automatically. 2 finding(s) were identified and resolved across 1 iteration(s).
+Action **localstack--setup-localstack--local/v0.3.1** was hardened automatically. 1 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-Rule (b) violation: The `run:` block expands the env var `NAME` (sourced from `inputs.name`, a workflow-controllable value) without double-quoting in the `localstack` commands: `localstack state export ${NAME}.zip` and `localstack state import ${NAME}.zip`. An unquoted `${NAME}` allows shell metacharacter injection (e.g. semicolons, pipes, glob characters) if a caller supplies a crafted value for `inputs.name`. The fix is to quote the expansion: `"${NAME}.zip"`.
+Sub-rule (b): The `run:` block maps `inputs.name` (attacker-controlled) into the env var `NAME`, then uses it **unquoted** as `${NAME}.zip` in two shell commands: `localstack state export ${NAME}.zip` and `localstack state import ${NAME}.zip`. An unquoted shell variable expansion allows an attacker to inject shell metacharacters (`;`, `|`, `&`, `$(...)`, glob chars, whitespace) via the `name` input, enabling command injection. The variable should be double-quoted: `"${NAME}.zip"`.
 
 Locations:
 
-- `action.yml:44`
-
-### script-injection (severity: high)
-
-Rule (b) violation: The `run:` block expands the env var `NAME` (sourced from `inputs.name`, a workflow-controllable value) without double-quoting in the `localstack` commands: `localstack state import ${NAME}.zip`. An unquoted `${NAME}` allows shell metacharacter injection if a caller supplies a crafted value for `inputs.name`. The fix is to quote the expansion: `"${NAME}.zip"`.
-
-Locations:
-
-- `action.yml:47`
+- `action.yml:46`
 
 ## Iteration Notes
 
@@ -38,5 +30,5 @@ Locations:
 
 **Notes:**
 
-Fixed two script injection vulnerabilities in hardened/action/action.yml. Both occurrences of unquoted `${NAME}.zip` in the `localstack state export` and `localstack state import` commands were changed to `"${NAME}.zip"` (double-quoted). This prevents shell metacharacter injection when `inputs.name` contains special characters like semicolons, pipes, or glob patterns.
+Fixed unquoted variable expansions in action.yml at line 46. Changed `localstack state export ${NAME}.zip` and `localstack state import ${NAME}.zip` to use double-quoted expansions: `localstack state export "${NAME}.zip"` and `localstack state import "${NAME}.zip"`. This prevents shell metacharacters in the `name` input from being interpreted as shell commands.
 

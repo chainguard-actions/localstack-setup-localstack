@@ -13,16 +13,7 @@ jobs:
         with:
           github-token: ${{ github.token }}
 
-      - name: Assert pr-id.txt was created
-        run: |
-          if [ ! -f ./pr-id.txt ]; then
-            echo "FAIL: pr-id.txt was not created"
-            exit 1
-          fi
-          echo "PASS: pr-id.txt exists"
-          echo "Contents: $(cat ./pr-id.txt)"
-
-      - name: Assert action ran (comment step may fail on sentinel repo)
+      - name: Assert action ran (PR comment fails gracefully on sentinel repo)
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
@@ -30,8 +21,17 @@ jobs:
           if [ "$OUTCOME" = "success" ]; then
             echo "PASS: action succeeded"
           elif [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action failed gracefully (sentinel repo is not resolvable)"
+            echo "PASS: action failed gracefully (expected on sentinel repo — PR comment cannot post)"
           else
             echo "FAIL: unexpected outcome '$OUTCOME'"
             exit 1
           fi
+
+      - name: Assert pr-id.txt was created
+        run: |
+          if [ ! -f ./pr-id.txt ]; then
+            echo "FAIL: pr-id.txt was not created"
+            exit 1
+          fi
+          echo "PASS: pr-id.txt exists"
+          cat ./pr-id.txt
