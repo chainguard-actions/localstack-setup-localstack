@@ -145,7 +145,7 @@ runs:
 
         echo "Created preview environment with endpoint URL: $endpointUrl"
 
-        echo "$endpointUrl" > ./ls-preview-url.txt
+        echo $endpointUrl > ./ls-preview-url.txt
         safe_endpointUrl=$(printf '%s' "$endpointUrl" | tr -d '\n\r')
         echo "LS_PREVIEW_URL=$safe_endpointUrl" >> "$GITHUB_ENV"
         echo "AWS_ENDPOINT_URL=$safe_endpointUrl" >> "$GITHUB_ENV"
