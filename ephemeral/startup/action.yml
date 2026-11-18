@@ -145,9 +145,10 @@ runs:
 
         echo "Created preview environment with endpoint URL: $endpointUrl"
 
-        echo $endpointUrl > ./ls-preview-url.txt
-        echo "LS_PREVIEW_URL=$endpointUrl" >> $GITHUB_ENV
-        echo "AWS_ENDPOINT_URL=$endpointUrl" >> $GITHUB_ENV
+        echo "$endpointUrl" > ./ls-preview-url.txt
+        safeEndpointUrl=$(printf '%s' "$endpointUrl" | tr -d '\n\r')
+        echo "LS_PREVIEW_URL=$safeEndpointUrl" >> "$GITHUB_ENV"
+        echo "AWS_ENDPOINT_URL=$safeEndpointUrl" >> "$GITHUB_ENV"
 
     - name: Upload preview instance URL
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
