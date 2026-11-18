@@ -146,8 +146,9 @@ runs:
         echo "Created preview environment with endpoint URL: $endpointUrl"
 
         echo $endpointUrl > ./ls-preview-url.txt
-        echo "LS_PREVIEW_URL=$endpointUrl" >> $GITHUB_ENV
-        echo "AWS_ENDPOINT_URL=$endpointUrl" >> $GITHUB_ENV
+        safe_endpointUrl=$(printf '%s' "$endpointUrl" | tr -d '\n\r')
+        echo "LS_PREVIEW_URL=$safe_endpointUrl" >> "$GITHUB_ENV"
+        echo "AWS_ENDPOINT_URL=$safe_endpointUrl" >> "$GITHUB_ENV"
 
     - name: Upload preview instance URL
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -161,8 +162,9 @@ runs:
       env:
         PREVIEW_CMD: ${{ inputs.preview-cmd }}
       run: |
-        printf '%s\n' "$PREVIEW_CMD" > /tmp/preview-cmd.sh
-        bash -eo pipefail /tmp/preview-cmd.sh
+        preview_cmd_file=$(mktemp)
+        printf '%s\n' "$PREVIEW_CMD" > "$preview_cmd_file"
+        bash -eo pipefail "$preview_cmd_file"
 
     - name: Print logs of ephemeral instance
       if: ${{ !cancelled() && steps.create-instance.outcome == 'success' }}

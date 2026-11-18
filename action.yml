@@ -1,9 +1,11 @@
 name: 'Setup LocalStack'
 description: 'Sets up LocalStack CLI in your GitHub Actions workflow.'
 author: 'LocalStack Team'
+
 branding:
   icon: 'code'
   color: 'white'
+
 inputs:
   image-tag:
     description: 'Tag of the LocalStack Docker image to use'
@@ -79,6 +81,7 @@ inputs:
     description: 'The lifetime of the ephemeral instance, how long the instance should be available for'
     required: false
     default: '30'
+
 runs:
   using: "composite"
   steps:
@@ -99,10 +102,10 @@ runs:
         curl "${args[@]}" \
           -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
           "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
-    - run: >
-        echo "GH_ACTION_ROOT=./$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH")" >> $GITHUB_ENV
-
+    - run: |
+        echo "GH_ACTION_ROOT=./$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH")" >> "$GITHUB_ENV"
       shell: bash
+
     - name: Install tools
       uses: chainguard-actions/jenseng-dynamic-uses@e233ad773207103f3272e900879a8f27c34acfba # v1
       if: ${{ inputs.skip-startup == 'true' || inputs.state-backend == 'ephemeral' || inputs.state-action == 'save' }}
@@ -112,6 +115,7 @@ runs:
           {
             "install-awslocal": ${{ toJSON(inputs.install-awslocal) }},
           }
+
     - name: Start Localstack
       uses: chainguard-actions/jenseng-dynamic-uses@e233ad773207103f3272e900879a8f27c34acfba # v1
       if: ${{ inputs.skip-startup != 'true' && inputs.state-backend != 'ephemeral' && inputs.state-action != 'save' }}
@@ -129,6 +133,7 @@ runs:
             "ci-project": ${{ toJSON(inputs.ci-project) }},
             "skip-wait": ${{ toJSON(inputs.skip-wait) }}
           }
+
     - name: Create Ephemeral Instance
       if: ${{ inputs.state-action == 'start' && inputs.state-backend == 'ephemeral' }}
       uses: chainguard-actions/jenseng-dynamic-uses@e233ad773207103f3272e900879a8f27c34acfba # v1
@@ -142,6 +147,7 @@ runs:
             "auto-load-pod": ${{ toJSON(inputs.auto-load-pod) }},
             "lifetime": ${{ toJSON(inputs.lifetime )}}
           }
+
     # Use different artifact from current workflow's by passing the workflow's id as WORKFLOW_ID env variable
     - name: Manage state
       if: ${{ inputs.state-action == 'save' || inputs.state-action == 'load' }}
@@ -153,6 +159,7 @@ runs:
             "name": ${{ toJSON(inputs.state-name) }},
             "action": ${{ toJSON(inputs.state-action) }}
           }
+
     - name: Display Ephemeral Instance URL
       if: ${{ inputs.state-action == 'start' && inputs.state-backend == 'ephemeral' && (inputs.include-preview == 'true' || inputs.ci-project != '') }}
       uses: chainguard-actions/jenseng-dynamic-uses@e233ad773207103f3272e900879a8f27c34acfba # v1
@@ -164,6 +171,7 @@ runs:
             "ci-project": ${{ toJSON(inputs.ci-project) }},
             "include-preview": ${{ inputs.include-preview != '' && toJSON(inputs.include-preview) || toJSON(env.include-preview) }}
           }
+    
     - name: Stop Ephemeral Instance
       if: ${{ (inputs.skip-ephemeral-stop == 'false' || inputs.state-action == 'stop') && inputs.state-backend == 'ephemeral' }}
       uses: chainguard-actions/jenseng-dynamic-uses@e233ad773207103f3272e900879a8f27c34acfba # v1

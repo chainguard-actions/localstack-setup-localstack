@@ -4,143 +4,354 @@
 
 > This file was generated automatically by the hardening agent.
 
-**Policy SHA:** `d636be7e43ef829af6e853da6b3c7566db9f72fe`
+**Policy SHA:** `374911c4be584df24e6da57af2d990570ef0f859`
 
 **Test Policy SHA:** `843adf9e4b8f85d0c08b27b9d0b09dd094b54702`
 
 **Harden Agent Version:** `2`
 
-Action **localstack--setup-localstack/v0.3.0** was hardened automatically. 7 finding(s) were identified and resolved across 5 iteration(s).
+Action **localstack--setup-localstack/v0.3.0** was hardened automatically. 11 finding(s) were identified and resolved across 1 iteration(s).
 
 ## Findings Fixed
 
 ### script-injection (severity: high)
 
-Sub-rule (a): Direct expression interpolation in run: block. `prepare/action.yml` interpolates `${{ github.event.number }}` directly into a shell command: `run: echo ${{ github.event.number }} > ./pr-id.txt`. An attacker-controlled PR number could inject shell metacharacters.
+Rule (a): step 'Create preview environment' puts GitHub expressions straight into the run script: `AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${{ inputs.localstack-api-key }}}}"`, `source ${{ github.action_path }}/../retry-function.sh`, `autoLoadPod="${AUTO_LOAD_POD:-${{ inputs.auto-load-pod }}}"`, `extensionAutoInstall="${EXTENSION_AUTO_INSTALL:-${{ inputs.extension-auto-install }}}"` and `lifetime="${{ inputs.lifetime }}"`.
 
 Locations:
 
-- `prepare/action.yml:16`
+- `ephemeral/startup/action.yml:62`
+- `ephemeral/startup/action.yml:66`
+- `ephemeral/startup/action.yml:84`
+- `ephemeral/startup/action.yml:85`
+- `ephemeral/startup/action.yml:86`
 
 ### script-injection (severity: high)
 
-Sub-rule (a): Direct expression interpolation in run: block. `startup/action.yml` interpolates `${{ inputs.ci-project }}` directly into a shell command: `export CI_PROJECT=${{ inputs.ci-project }}`. A caller-controlled input value is injected into the shell before quoting, enabling command injection.
+Rule (a): step 'Run preview deployment' puts `${{ inputs.preview-cmd }}` straight into the run script, so the shell runs whatever the input contains.
 
 Locations:
 
-- `startup/action.yml:65`
-
-### script-injection (severity: high)
-
-Sub-rule (a): Direct expression interpolation in run: block. `ephemeral/startup/action.yml` interpolates multiple inputs directly into shell commands: (1) `${{ inputs.preview-cmd }}` is used as a raw shell command (line ~148) — this is a direct arbitrary command execution vector; (2) `${{ inputs.localstack-api-key }}` is embedded in AUTH_HEADER assignment (line ~57); (3) `${{ inputs.auto-load-pod }}`, `${{ inputs.extension-auto-install }}`, and `${{ inputs.lifetime }}` are interpolated into shell variable assignments (lines ~72-74); (4) `${{ github.action_path }}` is used in a `source` command (line ~60); (5) the same pattern repeats in the 'Print logs' step (lines ~155-160).
-
-Locations:
-
-- `ephemeral/startup/action.yml:57`
-- `ephemeral/startup/action.yml:60`
-- `ephemeral/startup/action.yml:72`
-- `ephemeral/startup/action.yml:73`
-- `ephemeral/startup/action.yml:74`
-- `ephemeral/startup/action.yml:148`
 - `ephemeral/startup/action.yml:155`
 
 ### script-injection (severity: high)
 
-Sub-rule (a): Direct expression interpolation in run: block. `ephemeral/shutdown/action.yml` interpolates `${{ inputs.localstack-api-key }}` directly into the AUTH_HEADER shell variable assignment and `${{ github.action_path }}` into a `source` command inside a run: block. Both allow a caller to inject shell content.
+Rule (a): step 'Print logs of ephemeral instance' puts `${{ inputs.localstack-api-key }}` into the AUTH_HEADER assignment and runs `source ${{ github.action_path }}/../retry-function.sh` directly in the run script.
 
 Locations:
 
-- `ephemeral/shutdown/action.yml:34`
-- `ephemeral/shutdown/action.yml:37`
+- `ephemeral/startup/action.yml:163`
+- `ephemeral/startup/action.yml:167`
 
 ### script-injection (severity: high)
 
-Sub-rule (a): Direct expression interpolation in run: block. `finish/action.yml` interpolates `${{ inputs.preview-url }}` directly inside a shell conditional and echo command: `if [[ -n "${LS_PREVIEW_URL:-${{ inputs.preview-url }}}" ]]` and `echo "LS_PREVIEW_URL=${LS_PREVIEW_URL:-${{ inputs.preview-url }}}" >> $GITHUB_ENV`. A caller-controlled value is injected into the shell string before execution.
+Rule (a): step 'Shutdown ephemeral instance' puts `${{ inputs.localstack-api-key }}` into `AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${{ inputs.localstack-api-key }}}}"` and runs `source ${{ github.action_path }}/../retry-function.sh` directly in the run script.
 
 Locations:
 
-- `finish/action.yml:65`
-- `finish/action.yml:66`
+- `ephemeral/shutdown/action.yml:38`
+- `ephemeral/shutdown/action.yml:42`
 
 ### github-env-injection (severity: high)
 
-`finish/action.yml` writes `inputs.preview-url` (caller-controlled) to `$GITHUB_ENV` without sanitization. The value is interpolated directly via `${{ inputs.preview-url }}` and written with `echo "LS_PREVIEW_URL=${LS_PREVIEW_URL:-${{ inputs.preview-url }}}" >> $GITHUB_ENV`. No `printf '%s' ... | tr -d '\n\r'` sanitization is applied before the write, allowing newline injection to set arbitrary environment variables.
+Step 'Setup preview name' reads prId from the downloaded artifact file pr-id.txt, which is untrusted, and writes `echo "previewName=$previewName" >> $GITHUB_ENV` and `echo "name=$previewName" >> $GITHUB_OUTPUT` without stripping newlines first (`printf '%s' ... | tr -d '\n\r'`). Only the repository-name part goes through tr.
 
 Locations:
 
-- `finish/action.yml:66`
+- `ephemeral/startup/action.yml:55`
+- `ephemeral/startup/action.yml:56`
 
 ### github-env-injection (severity: high)
 
-`startup/action.yml` writes the `CONFIGURATION` env var (sourced from `inputs.configuration`) to the shell environment via `eval "${CONFIGURATION} localstack start -d"` and the `CONFIGURATION` variable is built up and used without sanitization. Additionally, `inputs.ci-project` is directly interpolated as `export CI_PROJECT=${{ inputs.ci-project }}` in the run block. The `CONFIGURATION` env var (set from `inputs.configuration`) is also used unsanitized in shell variable expansion throughout the script, and the GH_ACTION_ROOT value is written to `$GITHUB_ENV` via a command substitution that could be influenced by the runner environment.
+Step 'Create preview environment' writes endpointUrl, taken from the API response of a request built from inputs and inherited env vars, with `echo "LS_PREVIEW_URL=$endpointUrl" >> $GITHUB_ENV` and `echo "AWS_ENDPOINT_URL=$endpointUrl" >> $GITHUB_ENV`. Newlines are not stripped first.
 
 Locations:
 
-- `startup/action.yml:43`
-- `startup/action.yml:65`
-- `startup/action.yml:66`
+- `ephemeral/startup/action.yml:142`
+- `ephemeral/startup/action.yml:143`
+
+### github-env-injection (severity: high)
+
+Step 'Load the PR ID' writes the untrusted contents of the artifact file pr-id.txt with `echo "pr_id=$(<pr-id.txt)" >> $GITHUB_OUTPUT` without stripping newlines first.
+
+Locations:
+
+- `ephemeral/shutdown/action.yml:24`
+
+### github-env-injection (severity: high)
+
+Step 'Setup preview name' builds previewName from the untrusted contents of pr-id.txt and writes `echo "previewName=$previewName" >> $GITHUB_ENV` without stripping newlines first.
+
+Locations:
+
+- `ephemeral/shutdown/action.yml:33`
+
+### prior-fix (severity: high)
+
+Carried forward from this version's previous harden, which fixed it; fix it again unless the code no longer has the problem. The previous harden changed action.yml without recording a finding for it, and this analysis reported nothing there. Re-apply its security changes unless the code no longer needs them. The previous patch:
+```diff
+diff --git a/action.yml b/action.yml
+index edff1c5..c9d94d0 100644
+--- a/action.yml
++++ b/action.yml
+@@ -1,11 +1,9 @@
+ name: 'Setup LocalStack'
+ description: 'Sets up LocalStack CLI in your GitHub Actions workflow.'
+ author: 'LocalStack Team'
+-
+ branding:
+   icon: 'code'
+   color: 'white'
+-
+ inputs:
+   image-tag:
+     description: 'Tag of the LocalStack Docker image to use'
+@@ -81,24 +79,32 @@ inputs:
+     description: 'The lifetime of the ephemeral instance, how long the instance should be available for'
+     required: false
+     default: '30'
+-
+ runs:
+   using: "composite"
+   steps:
+-    - run: >
+-        echo "GH_ACTION_ROOT=$(
+-          ls -d $(
+-            ls -d ./../../_actions/* |
+-            grep -i localstack |
+-            tail -n1
+-          )/setup-localstack/* | 
+-          grep -v completed | 
+-          tail -n1
+-        )" >> $GITHUB_ENV
+       shell: bash
++      run: |
++        # Best-effort, fails open. Mints an OIDC token when id-token: write is
++        # granted (verified record); otherwise self-reports the repository.
++        tok=""
++        if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ]; then
++          tok=$(curl -sf --max-time 2 \
++            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
++            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=actions.chainguard.dev" \
++            | sed -n 's/.*"value":"\([^"]*\)".*/\1/p') || true
++        fi
++        args=(-sf --max-time 2 -X POST -H "Content-Type: application/json")
++        [ -n "$tok" ] && args+=(-H "Authorization: Bearer $tok")
++        curl "${args[@]}" \
++          -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"action\":\"${GITHUB_ACTION_REPOSITORY}\"}" \
++          "https://actions.enforce.dev/actions/v1/record" >/dev/null 2>&1 || true
++    - run: >
++        echo "GH_ACTION_ROOT=./$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH")" >> $GITHUB_ENV
+ 
++      shell: bash
+     - name: Install tools
+       uses: jenseng/dynamic-uses@8bc24f0360175e710da532c4d19eafdbed489a06 # v1
+       if: ${{ inputs.skip-startup == 'true' || inputs.state-backend == 'ephemeral' || inputs.state-action == 'save' }}
+       with:
+         uses: ${{ env.GH_ACTION_ROOT }}/tools
+@@ -106,9 +112,8 @@ runs:
+           {
+             "install-awslocal": ${{ toJSON(inputs.install-awslocal) }},
+           }
+-
+     - name: Start Localstack
+       uses: jenseng/dynamic-uses@8bc24f0360175e710da532c4d19eafdbed489a06 # v1
+       if: ${{ inputs.skip-startup != 'true' && inputs.state-backend != 'ephemeral' && inputs.state-action != 'save' }}
+       with:
+         # now we can dynamically determine sub-action path 🥳
+@@ -124,10 +129,9 @@ runs:
+             "ci-project": ${{ toJSON(inputs.ci-project) }},
+             "skip-wait": ${{ toJSON(inputs.skip-wait) }}
+           }
+-
+     - name: Create Ephemeral Instance
+       if: ${{ inputs.state-action == 'start' && inputs.state-backend == 'ephemeral' }}
+       uses: jenseng/dynamic-uses@8bc24f0360175e710da532c4d19eafdbed489a06 # v1
+       with:
+         uses: ${{ env.GH_ACTION_ROOT }}/ephemeral/startup
+         with: |-
+@@ -138,11 +142,10 @@ runs:
+             "auto-load-pod": ${{ toJSON(inputs.auto-load-pod) }},
+             "lifetime": ${{ toJSON(inputs.lifetime )}}
+           }
+-
+     # Use different artifact from current workflow's by passing the workflow's id as WORKFLOW_ID env variable
+     - name: Manage state
+       if: ${{ inputs.state-action == 'save' || inputs.state-action == 'load' }}
+       uses: jenseng/dynamic-uses@8bc24f0360175e710da532c4d19eafdbed489a06 # v1
+       with:
+         uses: ${{ env.GH_ACTION_ROOT }}/${{ inputs.state-backend }}
+         with: |-
+@@ -150,10 +153,9 @@ runs:
+             "name": ${{ toJSON(inputs.state-name) }},
+             "action": ${{ toJSON(inputs.state-action) }}
+           }
+-
+     - name: Display Ephemeral Instance URL
+       if: ${{ inputs.state-action == 'start' && inputs.state-backend == 'ephemeral' && (inputs.include-preview == 'true' || inputs.ci-project != '') }}
+       uses: jenseng/dynamic-uses@8bc24f03601
+... (truncated)
+```
+
+Locations:
+
+- `action.yml`
+
+### prior-fix (severity: high)
+
+Carried forward from this version's previous harden, which fixed it; fix it again unless the code no longer has the problem. The previous harden changed ephemeral/shutdown/action.yml without recording a finding for it, and this analysis reported nothing there. Re-apply its security changes unless the code no longer needs them. The previous patch:
+```diff
+diff --git a/ephemeral/shutdown/action.yml b/ephemeral/shutdown/action.yml
+index 9acfd98..b76974f 100644
+--- a/ephemeral/shutdown/action.yml
++++ b/ephemeral/shutdown/action.yml
+@@ -21,7 +21,10 @@ runs:
+     - name: Load the PR ID
+       id: pr
+       shell: bash
+-      run: echo "pr_id=$(<pr-id.txt)" >> $GITHUB_OUTPUT
++      run: |
++        raw_pr_id=$(<pr-id.txt)
++        safe_pr_id=$(printf '%s' "$raw_pr_id" | tr -d '\n\r')
++        echo "pr_id=$safe_pr_id" >> "$GITHUB_OUTPUT"
+ 
+     - name: Setup preview name
+       shell: bash
+@@ -30,16 +33,20 @@ runs:
+         repoName=$GITHUB_REPOSITORY
+         repoNameCleaned=$(echo -n "$repoName" | tr -c '[:alnum:]' '-')
+         previewName=preview-$repoNameCleaned-$prId
+-        echo "previewName=$previewName" >> $GITHUB_ENV
++        safe_previewName=$(printf '%s' "$previewName" | tr -d '\n\r')
++        echo "previewName=$safe_previewName" >> "$GITHUB_ENV"
+ 
+     - name: Shutdown ephemeral instance
+       shell: bash
++      env:
++        INPUT_LOCALSTACK_API_KEY: ${{ inputs.localstack-api-key }}
++        ACTION_PATH: ${{ github.action_path }}
+       run: |
+-        AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${{ inputs.localstack-api-key }}}}"
++        AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${INPUT_LOCALSTACK_API_KEY}}}"
+         CONTENT_TYPE_HEADER="content-type: application/json"
+         API_URL_BASE="https://api.localstack.cloud/v1/compute/instances"
+ 
+-        source ${{ github.action_path }}/../retry-function.sh
++        source "$ACTION_PATH/../retry-function.sh"
+         shutdown_instance() {
+             # The API returns a 200 on successful deletion.
+             # We use --fail-with-body so curl fails on server errors (5xx) and triggers the retry.
+
+```
+
+Locations:
+
+- `ephemeral/shutdown/action.yml`
+
+### prior-fix (severity: high)
+
+Carried forward from this version's previous harden, which fixed it; fix it again unless the code no longer has the problem. The previous harden changed ephemeral/startup/action.yml without recording a finding for it, and this analysis reported nothing there. Re-apply its security changes unless the code no longer needs them. The previous patch:
+```diff
+diff --git a/ephemeral/startup/action.yml b/ephemeral/startup/action.yml
+index c3d563d..b5eb1d9 100644
+--- a/ephemeral/startup/action.yml
++++ b/ephemeral/startup/action.yml
+@@ -52,18 +52,25 @@ runs:
+         repoName=$GITHUB_REPOSITORY
+         repoNameCleaned=$(echo -n "$repoName" | tr -c '[:alnum:]' '-')
+         previewName=preview-$repoNameCleaned-$prId
+-        echo "previewName=$previewName" >> $GITHUB_ENV
+-        echo "name=$previewName" >> $GITHUB_OUTPUT
++        safe_previewName=$(printf '%s' "$previewName" | tr -d '\n\r')
++        echo "previewName=$safe_previewName" >> "$GITHUB_ENV"
++        echo "name=$safe_previewName" >> "$GITHUB_OUTPUT"
+ 
+     - name: Create preview environment
+       shell: bash
+       id: create-instance
++      env:
++        INPUT_LOCALSTACK_API_KEY: ${{ inputs.localstack-api-key }}
++        ACTION_PATH: ${{ github.action_path }}
++        INPUT_AUTO_LOAD_POD: ${{ inputs.auto-load-pod }}
++        INPUT_EXTENSION_AUTO_INSTALL: ${{ inputs.extension-auto-install }}
++        INPUT_LIFETIME: ${{ inputs.lifetime }}
+       run: |
+-        AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${{ inputs.localstack-api-key }}}}"
++        AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${INPUT_LOCALSTACK_API_KEY}}}"
+         CONTENT_TYPE_HEADER="content-type: application/json"
+         API_URL_BASE="https://api.localstack.cloud/v1/compute/instances"
+ 
+-        source ${{ github.action_path }}/../retry-function.sh
++        source "$ACTION_PATH/../retry-function.sh"
+ 
+         fetch_instances() {
+             local list_response
+@@ -81,9 +88,9 @@ runs:
+           exit 1
+         fi
+ 
+-        autoLoadPod="${AUTO_LOAD_POD:-${{ inputs.auto-load-pod }}}"
+-        extensionAutoInstall="${EXTENSION_AUTO_INSTALL:-${{ inputs.extension-auto-install }}}"
+-        lifetime="${{ inputs.lifetime }}"
++        autoLoadPod="${AUTO_LOAD_POD:-${INPUT_AUTO_LOAD_POD}}"
++        extensionAutoInstall="${EXTENSION_AUTO_INSTALL:-${INPUT_EXTENSION_AUTO_INSTALL}}"
++        lifetime="${INPUT_LIFETIME}"
+ 
+         instance_exists=$(echo "$list_response" | jq --arg NAME "$previewName" '.[] | select(.instance_name == $NAME)')
+ 
+@@ -151,20 +158,25 @@ runs:
+     - name: Run preview deployment
+       if: ${{ inputs.preview-cmd != '' }}
+       shell: bash
++      env:
++        PREVIEW_CMD: ${{ inputs.preview-cmd }}
+       run: |
+-        ${{ inputs.preview-cmd }}
++        printf '%s\n' "$PREVIEW_CMD" > /tmp/preview-cmd.sh
++        bash -eo pipefail /tmp/preview-cmd.sh
+ 
+     - name: Print logs of ephemeral instance
+       if: ${{ !cancelled() && steps.create-instance.outcome == 'success' }}
+       shell: bash
+       env:
+         previewName: ${{ steps.preview-name.outputs.name }}
++        INPUT_LOCALSTACK_API_KEY: ${{ inputs.localstack-api-key }}
++        ACTION_PATH: ${{ github.action_path }}
+       run: |
+-        AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${{ inputs.localstack-api-key }}}}"
++        AUTH_HEADER="ls-api-key: ${LOCALSTACK_AUTH_TOKEN:-${LOCALSTACK_API_KEY:-${INPUT_LOCALSTACK_API_KEY}}}"
+         CONTENT_TYPE_HEADER="content-type: application/json"
+         API_URL_BASE="https://api.localstack.cloud/v1/compute/instances"
+ 
+-        source ${{ github.action_path }}/../retry-function.sh
++        source "$ACTION_PATH/../retry-function.sh"
+         fetch_logs() {
+             local log_response
+             log_response=$(curl --fail-with-body -s -X GET \
+
+```
+
+Locations:
+
+- `ephemeral/startup/action.yml`
 
 ## Iteration Notes
 
 ### Iteration 1
 
-**Fixes applied:** script-injection, github-env-injection
+**Fixes applied:** script-injection, github-env-injection, prior-fix
 
 **Notes:**
 
-Fixed all script-injection and github-env-injection findings across 5 files:
+I fixed every listed finding in ephemeral/startup/action.yml and ephemeral/shutdown/action.yml. Nothing has been run or tested.
 
-1. prepare/action.yml: Moved `${{ github.event.number }}` to env block (PR_NUMBER), used `"$PR_NUMBER"` in run.
+**Script injection:** In the run scripts, the API key, auto-load-pod, extension-auto-install and lifetime inputs now come in through the step's env: block, along with github.action_path. The retry-function.sh path is now quoted. preview-cmd is written to a mktemp file and run with `bash -eo pipefail`, so it still stops at the first failing line, as it did upstream.
 
-2. startup/action.yml: (a) Replaced _actions/* glob for GH_ACTION_ROOT with `./$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH/..")` to fix the _actions glob issue and avoid env injection. (b) Moved `${{ inputs.ci-project }}` to env block as CI_PROJECT_INPUT.
+**Env/output injection:** Newlines are now stripped from previewName, endpointUrl and the PR ID read from pr-id.txt before they are written to $GITHUB_ENV or $GITHUB_OUTPUT.
 
-3. ephemeral/startup/action.yml: (a) Create preview environment step: moved localstack-api-key, github.action_path, auto-load-pod, extension-auto-install, and lifetime to env block; updated all shell references. (b) Run preview deployment step: moved preview-cmd to env block, wrote to temp file and executed with `bash -eo pipefail` to preserve errexit. (c) Print logs step: moved localstack-api-key and github.action_path to env block.
+**Prior fix (action root lookup):** action.yml and startup/action.yml no longer search the runner's `_actions` directory for the upstream name, which finds nothing when the action is published under the mirror's name. Both now set GH_ACTION_ROOT to a path built from $GITHUB_ACTION_PATH, relative to the workspace and starting with `./`. In startup/action.yml it goes up one directory (`/..`) to reach the repo root. This uses `realpath --relative-to`, so it only works on Linux runners.
 
-4. ephemeral/shutdown/action.yml: Moved localstack-api-key and github.action_path to env block; updated shell references.
+**Extra change (not in the findings):** startup/action.yml also had `export CI_PROJECT=${{ inputs.ci-project }}` in a run script, so I moved that input into env: the same way.
 
-5. finish/action.yml: Moved `${{ inputs.preview-url }}` to env block as INPUT_PREVIEW_URL; rewrote conditional using shell variables; sanitized all values written to $GITHUB_ENV with `printf '%s' ... | tr -d '\n\r'` before writing (fixes both script-injection and github-env-injection findings).
-
-### Iteration 2
-
-**Fixes applied:** script-injection, github-env-injection
-
-**Notes:**
-
-Fixed 4 findings across 4 files:
-
-1. startup/action.yml (script-injection): Replaced `eval "${CONFIGURATION} localstack start -d"` with a safe loop that parses CONFIGURATION as KEY=VALUE pairs using `xargs -n1` and exports each assignment individually, then runs `localstack start -d` directly without eval.
-
-2. ephemeral/shutdown/action.yml (github-env-injection): Sanitized both the pr-id.txt content written to $GITHUB_OUTPUT and the previewName written to $GITHUB_ENV using `printf '%s' ... | tr -d '\n\r'`.
-
-3. ephemeral/startup/action.yml (github-env-injection): Sanitized both the previewName written to $GITHUB_ENV and $GITHUB_OUTPUT using `printf '%s' ... | tr -d '\n\r'`.
-
-4. finish/action.yml (github-env-injection): Sanitized the pr-id.txt content written to $GITHUB_OUTPUT using `printf '%s' ... | tr -d '\n\r'`.
-
-### Iteration 3
-
-**Fixes applied:** script-injection
-
-**Notes:**
-
-Fixed three script-injection findings by properly quoting unquoted shell variable expansions of user-controlled inputs:
-1. cloud-pods/action.yml (lines 19, 22): Quoted `$NAME` → `"$NAME"` in `localstack pod save` and `localstack pod load --yes` commands.
-2. local/action.yml (lines 34, 37): Quoted `${NAME}.zip` → `"${NAME}.zip"` in `localstack state export` and `localstack state import` commands.
-3. startup/action.yml (line 57): Quoted `${IMAGE_NAME}` → `"${IMAGE_NAME}"` in the `docker pull` command.
-All variables are already sourced from the step's `env:` block (not inline `${{ }}` expressions), so only the quoting fix was needed.
-
-### Iteration 4
-
-**Fixes applied:** script-injection
-
-**Notes:**
-
-Fixed unquoted shell expansion in hardened/action/startup/action.yml line 57: changed `localstack wait -t ${LS_WAIT_TIMEOUT:-30}` to `localstack wait -t "${LS_WAIT_TIMEOUT:-30}"`. The `LS_WAIT_TIMEOUT` variable is inherited from the calling workflow (not set in the step's env: block), making it untrusted. Quoting the expansion prevents shell metacharacters in the value from being interpreted as shell commands.
-
-### Iteration 1
-
-**Fixes applied:** publish-gate
-
-**Notes:**
-
-Fixed action.yml line 91: replaced the _actions directory search (`ls -d ./../../_actions/* | grep -i localstack | tail -n1)/setup-localstack/*`) with `./$(realpath --relative-to="$GITHUB_WORKSPACE" "$GITHUB_ACTION_PATH")`. This builds the GH_ACTION_ROOT path from $GITHUB_ACTION_PATH instead of searching by the upstream action name, which works correctly under any fork/owner name. The path is made relative to $GITHUB_WORKSPACE with the required './' prefix for uses: references.
+The previous harden also added an actions.enforce.dev record step to action.yml. That is telemetry, not a security fix, so I did not add it back. I left the existing `eval` of CONFIGURATION in startup/action.yml as upstream wrote it.
 

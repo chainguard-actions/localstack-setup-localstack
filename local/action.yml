@@ -1,5 +1,6 @@
 name: 'Save/Load LocalStack state'
 description: 'Save or load LocalStack state'
+
 inputs:
   name:
     description: 'Name of the artifact'
@@ -9,6 +10,7 @@ inputs:
     description: 'Action to perform (save or load)'
     required: true
     default: 'save'
+
 runs:
   using: "composite"
   steps:
@@ -37,6 +39,7 @@ runs:
       continue-on-error: true
       with:
         name: ${{ inputs.name }}
+
     # If the above fails, try to get the latest artifact from given workflow
     - name: Download latest Local State artifact
       uses: dawidd6/action-download-artifact@0bd50d53a6d7fb5cb921e607957e9cc12b4ce392 #v12
@@ -45,6 +48,7 @@ runs:
         name: ${{ inputs.name }}
         workflow: ${{ env.LS_STATE_ARTIFACT_WORKFLOW }} # Can be ID or workflow file name, if empty falls back to the latest successful run of the current workflow
         if_no_artifact_found: warn
+
     - run: |
         if [ "$ACTION" = "save" ]; then
           echo "Saving State $NAME"
@@ -60,6 +64,7 @@ runs:
       env:
         NAME: "${{ inputs.name }}"
         ACTION: "${{ inputs.action }}"
+
     - name: Upload LocalStack State
       uses: chainguard-actions/actions-upload-artifact@58b2f77fde711fbc8c271d0e5877c5d7d9a19733 # v6
       if: ${{ inputs.action == 'save' }}
